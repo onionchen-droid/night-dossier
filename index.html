@@ -1,0 +1,3148 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>夜色迷局 - Catch me if you can</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Liu+Jian+Mao+Cao&family=Zhi+Mang+Xing&family=Long+Cang&family=Special+Elite&family=Caveat:wght@700&family=Pinyon+Script&family=Mr+De+Haviland&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a1a url('images/back.png') no-repeat center center; background-size: cover; overflow: hidden; font-family: 'Georgia', serif; }
+canvas { position: absolute; top: 0; left: 0; transition: opacity 0.5s; opacity: 0; pointer-events: none; }
+canvas.active { opacity: 1; pointer-events: auto; }
+#gl { z-index: 1; }
+#ui { z-index: 2; pointer-events: none; }
+#ui.active { pointer-events: auto; }
+
+/* Cinematic Scenes */
+.scene { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity 1s, visibility 1s; z-index: 10; }
+.scene.active { opacity: 1; visibility: visible; }
+#scene-intro { 
+  background: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.7)), url('images/cover0.jpg') no-repeat center center; 
+  background-size: cover; 
+}
+.intro-title {
+  font-size: 3.5rem;
+  color: #c9a96e;
+  font-family: 'Georgia', serif;
+  margin-bottom: 10px;
+  text-shadow: 0 0 15px rgba(201, 169, 110, 0.6), 0 0 30px rgba(0, 0, 0, 0.8);
+  font-weight: normal;
+  letter-spacing: 4px;
+}
+.intro-subtitle {
+  font-size: 1.2rem;
+  color: rgba(201, 169, 110, 0.8);
+  font-family: 'Georgia', serif;
+  margin-bottom: 40px;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+  letter-spacing: 2px;
+}
+@media (max-width: 600px) {
+  .intro-title { font-size: 2.2rem; }
+  .intro-subtitle { font-size: 0.95rem; margin-bottom: 30px; }
+}
+#scene-typewriter { 
+  background: radial-gradient(circle at center, #2c1d11 0%, #0d0703 100%); 
+}
+:root {
+  /* Set initial spotlight coordinate center */
+  --spot-x: 50%;
+  --spot-y: 50%;
+}
+
+#scene-game-hub { 
+  background: #000; 
+  display: block; 
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#hub-bg-blurred {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: url('images/back.png') no-repeat center center;
+  background-size: cover;
+  z-index: 1;
+  filter: blur(4px) brightness(0.55) contrast(1.05);
+}
+
+/* Cinematic Dossier Card Deck */
+.hub-cards-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.4vw;
+  width: 98%;
+  max-width: 1800px;
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+/* Individual Suspect Card - Borderless & Unrestricted */
+.suspect-card {
+  position: relative;
+  width: 14.8vw;
+  height: 26.5vw;
+  min-width: 195px;
+  min-height: 350px;
+  max-width: 310px;
+  max-height: 555px;
+  background: transparent; /* No restricting solid color background */
+  border: none; /* Removed restricting outer border */
+  overflow: visible; /* Free the card illustration from bounds restriction */
+  cursor: pointer;
+  transition: all 0.45s cubic-bezier(0.25, 0.8, 0.25, 1);
+  user-select: none;
+}
+
+/* Grayscale state for Locked Cards */
+.suspect-card.locked {
+  filter: grayscale(100%) brightness(0.45);
+  cursor: not-allowed;
+}
+.suspect-card.unlocked {
+  filter: none;
+}
+
+/* Neon Red highlight for Current Active Progression Card - Using Drop Shadow for high-end floating glow */
+.suspect-card.active-level {
+  transform: translateY(-12px);
+  filter: drop-shadow(0 15px 25px rgba(255, 51, 102, 0.65));
+}
+.suspect-card.unlocked:hover {
+  transform: translateY(-14px) scale(1.03);
+  filter: drop-shadow(0 20px 30px rgba(201, 169, 110, 0.45));
+}
+.suspect-card.active-level:hover {
+  filter: drop-shadow(0 20px 35px rgba(255, 51, 102, 0.85));
+}
+
+/* Locked Card Click Shaker */
+.suspect-card.shake {
+  animation: card-shake 0.3s ease;
+}
+@keyframes card-shake {
+  0%, 100% { transform: translateY(-12px) translateX(0); }
+  25% { transform: translateY(-12px) translateX(-6px); }
+  50% { transform: translateY(-12px) translateX(6px); }
+  75% { transform: translateY(-12px) translateX(-6px); }
+}
+
+/* Card Suspect Photo Frame */
+.card-photo {
+  width: 100%;
+  height: 100%; /* Full bleed character artwork */
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: cover; /* Fill the entire card bounds completely without restricting side letterbox margins, making the artwork massive */
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden; /* Keeps overlays beautifully rounded within the portrait container */
+}
+
+/* Lock overlay */
+.card-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 10, 8, 0.85); /* Dark noir tint */
+  color: #c9a96e;
+  font-size: 1.2rem;
+  font-weight: bold;
+  font-family: 'Georgia', serif;
+  letter-spacing: 4px;
+  pointer-events: none;
+  z-index: 3;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+/* Solved Rubber Stamp overlay */
+.card-stamp {
+  position: absolute;
+  top: 22px;
+  right: 15px;
+  border: 3px double #00ff66;
+  color: #00ff66;
+  font-family: 'Georgia', serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 4px;
+  transform: rotate(-12deg);
+  opacity: 0.9;
+  z-index: 4;
+  letter-spacing: 1px;
+  text-shadow: 0 0 5px rgba(0, 255, 102, 0.4);
+  box-shadow: 0 0 5px rgba(0, 255, 102, 0.2);
+  background: rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+
+/* Cinematic Glassmorphism Hover Overlay */
+.card-quote-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(10, 5, 5, 0.98) 0%, rgba(15, 8, 8, 0.7) 45%, rgba(0, 0, 0, 0.1) 100%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 30px 20px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  z-index: 20; /* Elevate above card-info (z-index: 6) to completely unblock clicks and prevent overlay overlap */
+}
+.suspect-card.unlocked:hover .card-quote-overlay {
+  opacity: 1;
+}
+
+.card-quote-text {
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #f4ebd0;
+  line-height: 1.6;
+  margin-bottom: 25px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+  transform: translateY(15px);
+  transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.suspect-card.unlocked:hover .card-quote-text {
+  transform: translateY(0);
+}
+
+/* Card Lower Content details */
+.card-info {
+  padding: 20px 12px 15px 12px;
+  text-align: center;
+  background: linear-gradient(to top, rgba(9, 6, 5, 0.98) 0%, rgba(9, 6, 5, 0.75) 65%, rgba(9, 6, 5, 0) 100%);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 28%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-top: none;
+  z-index: 6;
+  pointer-events: none;
+}
+.card-info-title {
+  color: #c9a96e;
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+.card-info-subtitle {
+  color: #555;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-top: 5px;
+}
+.suspect-card.active-level .card-info-title {
+  color: #ff3366;
+  text-shadow: 0 0 5px rgba(255, 51, 102, 0.3);
+}
+.suspect-card.active-level .card-info-subtitle {
+  color: #ff3366;
+  opacity: 0.7;
+}
+
+/* Elegant Serve Wine Button */
+.serve-wine-btn {
+  background: rgba(201, 169, 110, 0.08);
+  border: 1px solid rgba(201, 169, 110, 0.4);
+  color: #c9a96e;
+  padding: 10px 24px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  font-family: 'Georgia', serif;
+  border-radius: 30px;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transform: translateY(15px);
+}
+.suspect-card.unlocked:hover .serve-wine-btn {
+  transform: translateY(0);
+  transition-delay: 0.05s;
+}
+.serve-wine-btn:hover {
+  background: rgba(201, 169, 110, 0.9);
+  color: #1a0f07;
+  box-shadow: 0 0 20px rgba(201, 169, 110, 0.5);
+  border-color: #c9a96e;
+}
+#scene-cover-reveal {
+  background: url('images/cover.jpg') no-repeat center center;
+  background-size: cover;
+  cursor: pointer;
+  
+  /* Cinematic slow fade-in transition (scale, brightness, and blur) */
+  transition: opacity 2.5s cubic-bezier(0.22, 1, 0.36, 1), 
+              filter 2.8s cubic-bezier(0.22, 1, 0.36, 1), 
+              transform 3.0s cubic-bezier(0.25, 1, 0.5, 1),
+              visibility 2.5s;
+  opacity: 0;
+  filter: brightness(0) blur(6px);
+  transform: scale(1.06); /* Slow lens scale push-in */
+  visibility: hidden;
+}
+#scene-cover-reveal.active {
+  opacity: 1;
+  filter: brightness(1) blur(0px);
+  transform: scale(1);
+  visibility: visible;
+}
+#scene-cover-reveal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 35%, rgba(0, 0, 0, 0.9) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.reveal-instruction {
+  position: absolute;
+  bottom: 8vh;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #c9a96e;
+  font-family: 'Georgia', serif;
+  font-size: 1.25rem;
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.9);
+  animation: pulse-slow 2s infinite;
+  pointer-events: none;
+  background: rgba(15, 10, 8, 0.75);
+  padding: 12px 35px;
+  border: 1px dashed rgba(201,169,110,0.4);
+  border-radius: 6px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+  z-index: 3; /* Render on top of flickering overlays */
+}
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+.vintage-btn { background: transparent; border: 1px solid #c9a96e; color: #c9a96e; font-family: 'Georgia', serif; font-size: 1.2rem; padding: 12px 40px; cursor: pointer; transition: all 0.3s; letter-spacing: 3px; }
+.vintage-btn:hover { background: #c9a96e; color: #000; }
+.hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  animation: none !important;
+}
+#btn-enter {
+  background: transparent;
+  color: #1a0f07;
+  font-family: 'Georgia', serif;
+  font-size: 1.15rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+  animation: pulse-slow 2s infinite;
+  transition: color 0.3s ease;
+}
+#btn-enter:hover {
+  color: #c9a96e;
+}
+
+.global-nav {
+  position: absolute;
+  top: 20px;
+  right: 70px; /* Shifted left to make room for mute-btn */
+  display: flex;
+  gap: 12px;
+  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.5s, visibility 0.5s;
+}
+.mute-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  background: rgba(20, 15, 12, 0.85);
+  border: 1px solid #c9a96e;
+  color: #c9a96e;
+  font-size: 1.1rem;
+  cursor: pointer;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 205; /* higher than global-nav */
+  user-select: none;
+}
+.mute-btn:hover {
+  background: #c9a96e;
+  color: #1a0f07;
+  box-shadow: 0 0 15px rgba(201, 169, 110, 0.6);
+}
+.global-nav.active {
+  opacity: 1;
+  visibility: visible;
+}
+.nav-btn {
+  background: rgba(20, 15, 12, 0.85);
+  border: 1px solid #c9a96e;
+  color: #c9a96e;
+  font-family: 'Georgia', serif;
+  font-size: 0.9rem;
+  padding: 8px 18px;
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  letter-spacing: 1px;
+}
+.nav-btn:hover {
+  background: #c9a96e;
+  color: #1a0f07;
+  box-shadow: 0 0 15px rgba(201, 169, 110, 0.6);
+}
+
+.paper-container { 
+  background-color: #d8c3a5; 
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.05) 100%),
+    url('images/牛皮纸.png');
+  background-size: 114% 110%; /* Zoom and stretch to clip out the 5-6% transparent edges of the PNG */
+  background-position: center;
+  width: 85%; 
+  max-width: 650px; 
+  min-height: 420px; 
+  padding: 50px 45px; 
+  box-shadow: 
+    0 15px 35px rgba(0,0,0,0.7),
+    inset 0 0 60px rgba(139, 90, 43, 0.3); 
+  border: 1px solid #d2b48c;
+  border-radius: 6px 18px 8px 12px/12px 8px 18px 6px; 
+  color: #1a0f07;
+  font-family: 'Georgia', serif;
+  font-size: 1.2rem; 
+  line-height: 2.0; 
+  letter-spacing: 2px;
+  position: relative; 
+  transform: rotate(-0.5deg); 
+}
+.paper-container::after { 
+  content: ''; 
+  position: absolute; 
+  inset: 0; 
+  box-shadow: inset 0 0 40px rgba(139, 90, 43, 0.2); 
+  pointer-events: none; 
+}
+#typewriter-text { 
+  white-space: pre-wrap; 
+  font-weight: 600;
+  text-shadow: 0.3px 0.3px 0.5px rgba(0, 0, 0, 0.95), 0 0 1.2px rgba(0, 0, 0, 0.45); /* simulating lead letterpress inky bleed */
+}
+
+.hub-title { color: #c9a96e; font-family: 'Pinyon Script', 'Mr De Haviland', cursive; font-size: 4.8rem; margin-bottom: 20px; text-shadow: 0 0 20px rgba(201,169,110,0.85); font-weight: normal; letter-spacing: 2px; z-index: 210; }
+
+/* Dossier Horizontal Row */
+.dossier-grid {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  width: 95%;
+  max-width: 1100px;
+  margin-top: auto; /* Push to bottom of scene-game-hub */
+  margin-bottom: 10px;
+  padding: 15px 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201,169,110,0.5) transparent;
+}
+.dossier-grid::-webkit-scrollbar {
+  height: 6px;
+}
+.dossier-grid::-webkit-scrollbar-thumb {
+  background: rgba(201,169,110,0.5);
+  border-radius: 3px;
+}
+
+@media (max-width: 1040px) {
+  .dossier-grid {
+    justify-content: flex-start; /* scroll smoothly on smaller desktop/tablet */
+  }
+}
+
+/* Dossier Card Base */
+.dossier-card {
+  position: relative;
+  background: rgba(20, 15, 15, 0.7);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  height: 200px;
+  width: 155px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  user-select: none;
+}
+
+.card-image-placeholder {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  transition: opacity 0.4s ease;
+}
+
+.card-content {
+  padding: 12px 10px;
+  background: #0a0a0a;
+  text-align: center;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  position: relative;
+  z-index: 3;
+}
+.card-name {
+  color: #c9a96e;
+  font-size: 1.1rem;
+  margin-bottom: 2px;
+  text-shadow: 0 0 5px rgba(201,169,110,0.3);
+}
+.card-en {
+  color: #666;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Quote Overlay */
+.card-quote {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: calc(100% - 55px);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #eee;
+  font-size: 0.8rem;
+  font-style: italic;
+  background: rgba(0,0,0,0.85);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  line-height: 1.4;
+  z-index: 2;
+}
+
+/* Locked State */
+.dossier-card.locked {
+  filter: grayscale(100%) opacity(0.5);
+  cursor: not-allowed;
+}
+.lock-icon {
+  position: absolute;
+  top: calc(50% - 20px);
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.5rem;
+  color: rgba(255,255,255,0.6);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Unlocked State */
+.dossier-card.unlocked {
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(220, 20, 60, 0.4);
+  border-color: rgba(220, 20, 60, 0.6);
+  animation: neon-pulse 3s infinite alternate;
+}
+@keyframes neon-pulse {
+  0% { box-shadow: 0 0 5px rgba(220, 20, 60, 0.2); border-color: rgba(220, 20, 60, 0.3); }
+  100% { box-shadow: 0 0 18px rgba(220, 20, 60, 0.8); border-color: rgba(220, 20, 60, 0.9); }
+}
+
+/* Hover Effects */
+.dossier-card.unlocked:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 5px 25px rgba(220, 20, 60, 0.9);
+}
+.dossier-card.unlocked:hover .card-quote {
+  opacity: 1;
+}
+
+/* Shake Animation for Locked Clicks */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-5px); }
+}
+.shake { animation: shake 0.3s; }
+.debug-btn {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  background: rgba(0, 255, 102, 0.15);
+  border: 1px solid #00ff66;
+  color: #00ff66;
+  font-family: 'Georgia', serif;
+  font-size: 0.85rem;
+  padding: 8px 15px;
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: 0 0 15px rgba(0, 255, 102, 0.3);
+  z-index: 200;
+  transition: all 0.3s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.debug-btn:hover {
+  background: #00ff66;
+  color: #000;
+  box-shadow: 0 0 20px #00ff66;
+}
+
+/* Solved Stamp for Cleared Suspect Cards */
+.stamp-solved {
+  position: absolute;
+  top: 15px;
+  right: 10px;
+  border: 3px double #00ff66;
+  color: #00ff66;
+  font-family: 'Georgia', serif;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transform: rotate(-12deg);
+  opacity: 0.9;
+  z-index: 5;
+  letter-spacing: 1px;
+  text-shadow: 0 0 5px rgba(0, 255, 102, 0.4);
+  box-shadow: 0 0 5px rgba(0, 255, 102, 0.2);
+  background: rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+/* Red Viewfinder Target Frame */
+.hub-viewfinder {
+  position: absolute;
+  z-index: 15; /* sits above backgrounds but below hotspots and popover */
+  pointer-events: none;
+  border: 1px solid rgba(255, 51, 102, 0.15);
+  box-sizing: border-box;
+  opacity: 0;
+  transition: all 0.55s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: inset 0 0 15px rgba(255, 51, 102, 0.05);
+}
+.viewfinder-corner {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid #ff3366;
+  box-shadow: 0 0 8px rgba(255, 51, 102, 0.8);
+}
+.viewfinder-corner.top-left { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+.viewfinder-corner.top-right { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+.viewfinder-corner.bottom-left { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+.viewfinder-corner.bottom-right { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+.viewfinder-label {
+  position: absolute;
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.72rem;
+  font-weight: bold;
+  color: #ff3366;
+  background: rgba(10, 5, 5, 0.85);
+  border: 1px solid rgba(255, 51, 102, 0.5);
+  padding: 3px 10px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.8), 0 0 8px rgba(255, 51, 102, 0.2);
+}
+.viewfinder-dot {
+  width: 7px;
+  height: 7px;
+  background-color: #ff3366;
+  border-radius: 50%;
+  animation: vf-blink 0.8s infinite alternate;
+  box-shadow: 0 0 6px #ff3366;
+}
+@keyframes vf-blink {
+  0% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+/* Dossier Card Active Highlight Override */
+.dossier-card.active {
+  transform: translateY(-8px) scale(1.04);
+  box-shadow: 0 0 25px rgba(255, 51, 102, 0.85) !important;
+  border-color: #ff3366 !important;
+  z-index: 5;
+}
+.dossier-card.active .card-name {
+  color: #ff3366;
+  text-shadow: 0 0 8px rgba(255, 51, 102, 0.6);
+}
+#scene-headphones {
+  background: #000;
+  cursor: pointer;
+  z-index: 300;
+}
+.headphones-text {
+  font-size: 1.8rem;
+  color: rgba(201, 169, 110, 0.95);
+  font-family: 'Georgia', serif;
+  letter-spacing: 3px;
+  margin-bottom: 20px;
+  text-shadow: 0 0 10px rgba(201, 169, 110, 0.4);
+}
+.headphones-subtext {
+  font-size: 0.95rem;
+  color: rgba(201, 169, 110, 0.5);
+  font-family: 'Georgia', serif;
+  letter-spacing: 2px;
+  animation: pulse-slow 2s infinite;
+}
+#btn-restart:hover {
+  background: #ffd700 !important;
+  color: #1a0f07 !important;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.85) !important;
+  transform: scale(1.04);
+}
+.board-bg-tray {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0; /* behind gl (z-index 1) and ui (z-index 2) */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.5s, visibility 0.5s;
+  
+  /* High-end glassmorphic dark-amber layout */
+  background: linear-gradient(135deg, rgba(26, 18, 14, 0.82) 0%, rgba(14, 10, 8, 0.94) 100%);
+  
+  /* Strong frosted glass blur */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  
+  /* Elegant, semi-transparent warm-gold border */
+  border: 2px solid rgba(201, 169, 110, 0.45);
+  
+  /* Layered shadows: deep outer drop-shadow + inner bevel highlight + inner recess shadow */
+  box-shadow: 
+    0 25px 60px rgba(0, 0, 0, 0.95), 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06), 
+    inset 0 0 35px rgba(0, 0, 0, 0.85);
+  
+  border-radius: 16px;
+  overflow: hidden;
+}
+.board-bg-tray.active {
+  opacity: 1;
+  visibility: visible;
+}
+</style>
+</head>
+<body>
+<button id="btn-mute" class="mute-btn">音</button>
+<div id="global-nav" class="global-nav">
+  <button id="nav-back" class="nav-btn">返回上页</button>
+  <button id="nav-home" class="nav-btn">返回首页</button>
+</div>
+<button id="btn-debug" class="debug-btn">[ 调试: 一键跳关 +1 ]</button>
+<div id="scene-headphones" class="scene active">
+  <div class="headphones-text">建议佩戴耳机体验</div>
+  <div class="headphones-subtext">[ 点击屏幕开启 ]</div>
+</div>
+<div id="scene-intro" class="scene">
+  <button id="btn-intro" class="vintage-btn">[ 点击开启案宗 ]</button>
+</div>
+<div id="scene-typewriter" class="scene">
+  <div class="paper-container">
+    <div id="typewriter-text"></div>
+    <br/>
+    <div id="btn-enter" class="hidden" style="text-align: center; margin-top: 25px; cursor: pointer;">点击进入酒馆</div>
+  </div>
+</div>
+<div id="scene-cover-reveal" class="scene">
+  <div class="reveal-instruction">[ 点击任意位置，开始盘问 ]</div>
+</div>
+<div id="scene-game-hub" class="scene">
+  <div id="hub-bg-blurred"></div>
+  
+  <!-- Centered suspect cards horizontal deck container -->
+  <div id="hub-cards-container" class="hub-cards-container"></div>
+  
+  <!-- Bottom popover folder removed in favor of direct active card hover wine-serving mechanism -->
+</div>
+
+<div id="scene-ending" class="scene">
+  <div id="ending-bg-blurred" style="position: absolute; inset: 0; background: url('images/back.png') no-repeat center center; background-size: cover; z-index: 1; filter: blur(8px) brightness(0.25); transition: filter 3s;"></div>
+  <!-- Neon lights reflection overlay representing dim bar atmosphere -->
+  <div style="position: absolute; inset: 0; background: radial-gradient(circle at 15% 20%, rgba(255, 0, 102, 0.18) 0%, transparent 45%), radial-gradient(circle at 85% 80%, rgba(0, 166, 255, 0.15) 0%, transparent 50%), linear-gradient(135deg, rgba(15, 10, 8, 0.3) 0%, rgba(0, 0, 0, 0.8) 100%); mix-blend-mode: color-dodge; pointer-events: none; z-index: 2;"></div>
+  <div class="paper-container" style="z-index: 10; max-width: 700px; min-height: 480px; transform: rotate(0deg); box-shadow: 0 25px 60px rgba(0,0,0,0.95); border: 1.5px solid rgba(255, 51, 102, 0.6); position: relative;">
+    <div id="ending-text" style="white-space: pre-wrap; font-weight: 600; line-height: 1.8; font-size: 1.12rem; color: #1a0f07; font-family: 'Georgia', serif;"></div>
+    <br/>
+    <button id="btn-restart" class="vintage-btn hidden" style="display: block; margin: 20px auto 0 auto; background: #1e130d; color: #ffd700; border-color: #ffd700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.45); font-family: 'Georgia', serif; font-size: 1.1rem; padding: 10px 25px; border-radius: 4px; transition: opacity 1.5s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.3s, box-shadow 0.3s; cursor: pointer; outline: none; border-style: solid; border-width: 1px;">[ 重入夜色 ]</button>
+  </div>
+</div>
+
+<div id="board-bg-tray" class="board-bg-tray"></div>
+<canvas id="gl"></canvas>
+<canvas id="ui"></canvas>
+<script>
+window.confirm = () => true;
+// ===== INTRO DOM LOGIC =====
+const introText = `案发时间：1988年11月24日，深夜。\n地点：台北，“夜色”酒馆。\n失踪者：林某，知名珠宝商人。\n\n他最后一次出现，是带着一枚价值连城的蓝宝石。\n昨晚陪他喝酒的，有六个人。\n每个人都笑容满面，每个人都各怀鬼胎。\n\n今晚，带上你的酒量。\n别相信他们的眼泪，只相信你赢来的线索。`;
+
+let typewriterInterval = null;
+let typewriterFinished = false;
+
+// ===== AUDIO SYSTEM =====
+const AudioSystem = {
+  bgm: null,
+  typingSound: null,
+  ambientRain: null,
+  ambientTavern: null,
+  currentBgmSrc: '',
+  isMuted: false,
+
+  init() {
+    // Attempt immediate autoplay on load
+    this.playBgm('music/首页bgm.mp3');
+
+    // Add global click/touchstart listener to unlock/unmute audio autoplay
+    const unlock = () => {
+      if (this.bgm) {
+        if (this.bgm.paused) {
+          // If BGM was fully blocked/paused, play it now
+          this.bgm.muted = this.isMuted;
+          this.bgm.play().then(() => {
+            const targetBgmVol = (this.currentBgmSrc === 'music/首页bgm.mp3') ? 0.12 : 0.2;
+            this.bgm.volume = this.isMuted ? 0 : targetBgmVol;
+          }).catch(e => console.log('Unlock play failed:', e));
+        } else if (this.bgm.muted && !this.isMuted) {
+          // If BGM was playing muted to bypass autoplay block, unmute it now!
+          this.bgm.muted = false;
+          let vol = 0;
+          this.bgm.volume = 0;
+          const fadeInterval = setInterval(() => {
+            vol += 0.02;
+            const targetBgmVol = (this.currentBgmSrc === 'music/首页bgm.mp3') ? 0.12 : 0.2;
+            if (vol >= targetBgmVol) {
+              clearInterval(fadeInterval);
+              this.bgm.volume = targetBgmVol;
+            } else {
+              this.bgm.volume = vol;
+            }
+          }, 50);
+        }
+      } else {
+        this.playBgm('music/首页bgm.mp3');
+      }
+
+      // Unlock ambientRain too
+      if (this.ambientRain) {
+        if (this.ambientRain.paused) {
+          this.ambientRain.muted = this.isMuted;
+          this.ambientRain.play().then(() => {
+            this.ambientRain.volume = this.isMuted ? 0 : 0.38;
+          }).catch(e => console.log('Rain unlock play failed:', e));
+        } else if (this.ambientRain.muted && !this.isMuted) {
+          this.ambientRain.muted = false;
+          let vol = 0;
+          this.ambientRain.volume = 0;
+          const fadeInterval = setInterval(() => {
+            vol += 0.03;
+            if (vol >= 0.38) {
+              clearInterval(fadeInterval);
+              this.ambientRain.volume = 0.38;
+            } else {
+              this.ambientRain.volume = vol;
+            }
+          }, 50);
+        }
+      }
+
+      // Unlock ambientTavern too
+      if (this.ambientTavern) {
+        if (this.ambientTavern.paused) {
+          this.ambientTavern.muted = this.isMuted;
+          this.ambientTavern.play().then(() => {
+            this.ambientTavern.volume = this.isMuted ? 0 : 0.15;
+          }).catch(e => console.log('Tavern unlock play failed:', e));
+        } else if (this.ambientTavern.muted && !this.isMuted) {
+          this.ambientTavern.muted = false;
+          let vol = 0;
+          this.ambientTavern.volume = 0;
+          const fadeInterval = setInterval(() => {
+            vol += 0.02;
+            if (vol >= 0.15) {
+              clearInterval(fadeInterval);
+              this.ambientTavern.volume = 0.15;
+            } else {
+              this.ambientTavern.volume = vol;
+            }
+          }, 50);
+        }
+      }
+
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('touchstart', unlock);
+    };
+    document.addEventListener('click', unlock);
+    document.addEventListener('touchstart', unlock);
+
+    // Setup mute button toggle
+    const muteBtn = document.getElementById('btn-mute');
+    if (muteBtn) {
+      muteBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.toggleMute();
+      };
+    }
+  },
+
+  playBgm(src) {
+    if (this.currentBgmSrc === src) return;
+    this.currentBgmSrc = src;
+
+    if (this.bgm) {
+      // Fade out previous BGM
+      const prevBgm = this.bgm;
+      let vol = prevBgm.volume;
+      const fadeInterval = setInterval(() => {
+        vol -= 0.05;
+        if (vol <= 0) {
+          clearInterval(fadeInterval);
+          prevBgm.pause();
+        } else {
+          prevBgm.volume = Math.max(0, vol);
+        }
+      }, 50);
+    }
+
+    // Handle ambient rain fade out/stop when switching away from 首页bgm.mp3
+    if (src !== 'music/首页bgm.mp3' && this.ambientRain) {
+      const prevRain = this.ambientRain;
+      let rVol = prevRain.volume;
+      const rainFadeInterval = setInterval(() => {
+        rVol -= 0.05;
+        if (rVol <= 0) {
+          clearInterval(rainFadeInterval);
+          prevRain.pause();
+        } else {
+          prevRain.volume = Math.max(0, rVol);
+        }
+      }, 50);
+      this.ambientRain = null;
+    }
+
+    // Handle ambient tavern noise fade out/stop when switching away from 酒馆嘈杂声.mp3
+    if (src !== 'music/酒馆嘈杂声.mp3' && this.ambientTavern) {
+      const prevTavern = this.ambientTavern;
+      let tVol = prevTavern.volume;
+      const tavernFadeInterval = setInterval(() => {
+        tVol -= 0.05;
+        if (tVol <= 0) {
+          clearInterval(tavernFadeInterval);
+          prevTavern.pause();
+        } else {
+          prevTavern.volume = Math.max(0, tVol);
+        }
+      }, 50);
+      this.ambientTavern = null;
+    }
+
+    // Determine target file to play as main bgm audio track
+    let actualSrc = src;
+    if (src === 'music/酒馆嘈杂声.mp3') {
+      actualSrc = 'music/主bgm首选.mp3';
+    }
+
+    this.bgm = new Audio(actualSrc);
+    this.bgm.loop = true;
+    this.bgm.muted = this.isMuted;
+    this.bgm.volume = 0;
+
+    const targetBgmVol = (src === 'music/首页bgm.mp3') ? 0.12 : 0.2;
+
+    const playPromise = this.bgm.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        // Fade in new BGM
+        let vol = 0;
+        const fadeInterval = setInterval(() => {
+          vol += 0.02;
+          if (vol >= targetBgmVol) {
+            clearInterval(fadeInterval);
+            this.bgm.volume = this.isMuted ? 0 : targetBgmVol;
+          } else {
+            this.bgm.volume = this.isMuted ? 0 : vol;
+          }
+        }, 50);
+      }).catch(e => {
+        console.log('Unmuted playback blocked, attempting muted autoplay bypass:', e);
+        this.bgm.muted = true;
+        this.bgm.play().then(() => {
+          console.log('Muted autoplay bypass successful!');
+        }).catch(err => {
+          console.log('Muted autoplay also blocked by browser:', err);
+        });
+      });
+    }
+
+    // Play rain simultaneously if loading 首页bgm.mp3
+    if (src === 'music/首页bgm.mp3') {
+      if (!this.ambientRain) {
+        this.ambientRain = new Audio('music/下雨.mp3');
+        this.ambientRain.loop = true;
+        this.ambientRain.muted = this.isMuted;
+        this.ambientRain.volume = 0;
+      }
+      const rainPromise = this.ambientRain.play();
+      if (rainPromise !== undefined) {
+        rainPromise.then(() => {
+          let vol = 0;
+          const rainFade = setInterval(() => {
+            vol += 0.03;
+            if (vol >= 0.38) {
+              clearInterval(rainFade);
+              if (this.ambientRain) this.ambientRain.volume = this.isMuted ? 0 : 0.38;
+            } else {
+              if (this.ambientRain) this.ambientRain.volume = this.isMuted ? 0 : vol;
+            }
+          }, 50);
+        }).catch(e => {
+          console.log('Rain autoplay blocked, playing muted:', e);
+          if (this.ambientRain) {
+            this.ambientRain.muted = true;
+            this.ambientRain.play().catch(err => console.log('Rain muted autoplay blocked:', err));
+          }
+        });
+      }
+    }
+
+    // Play tavern ambient noise simultaneously if loading 酒馆嘈杂声.mp3
+    if (src === 'music/酒馆嘈杂声.mp3') {
+      if (!this.ambientTavern) {
+        this.ambientTavern = new Audio('music/酒馆嘈杂声.mp3');
+        this.ambientTavern.loop = true;
+        this.ambientTavern.muted = this.isMuted;
+        this.ambientTavern.volume = 0;
+      }
+      const tavernPromise = this.ambientTavern.play();
+      if (tavernPromise !== undefined) {
+        tavernPromise.then(() => {
+          let vol = 0;
+          const tavernFade = setInterval(() => {
+            vol += 0.02;
+            if (vol >= 0.15) {
+              clearInterval(tavernFade);
+              if (this.ambientTavern) this.ambientTavern.volume = this.isMuted ? 0 : 0.15;
+            } else {
+              if (this.ambientTavern) this.ambientTavern.volume = this.isMuted ? 0 : vol;
+            }
+          }, 50);
+        }).catch(e => {
+          console.log('Tavern noise autoplay blocked, playing muted:', e);
+          if (this.ambientTavern) {
+            this.ambientTavern.muted = true;
+            this.ambientTavern.play().catch(err => console.log('Tavern noise muted autoplay blocked:', err));
+          }
+        });
+      }
+    }
+  },
+
+  stopBgm() {
+    if (this.bgm) {
+      this.bgm.pause();
+      this.bgm = null;
+      this.currentBgmSrc = '';
+    }
+    if (this.ambientRain) {
+      this.ambientRain.pause();
+      this.ambientRain = null;
+    }
+    if (this.ambientTavern) {
+      this.ambientTavern.pause();
+      this.ambientTavern = null;
+    }
+  },
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    if (this.bgm) {
+      this.bgm.muted = this.isMuted;
+    }
+    if (this.typingSound) {
+      this.typingSound.muted = this.isMuted;
+    }
+    if (this.ambientRain) {
+      this.ambientRain.muted = this.isMuted;
+    }
+    if (this.ambientTavern) {
+      this.ambientTavern.muted = this.isMuted;
+    }
+    const btn = document.getElementById('btn-mute');
+    if (btn) {
+      btn.textContent = this.isMuted ? '静' : '音';
+    }
+  },
+
+  playSfx(src, volume = 0.5) {
+    const sfx = new Audio(src);
+    sfx.volume = volume;
+    sfx.muted = this.isMuted;
+    sfx.play().catch(e => console.log('SFX play blocked:', e));
+  },
+
+  startTypingSfx() {
+    if (!this.typingSound) {
+      this.typingSound = new Audio('music/打字机音效.mp3');
+      this.typingSound.loop = true;
+      this.typingSound.volume = 0.8;
+    }
+    this.typingSound.muted = this.isMuted;
+    this.typingSound.play().catch(e => console.log('Typing SFX blocked:', e));
+  },
+
+  stopTypingSfx() {
+    if (this.typingSound) {
+      this.typingSound.pause();
+    }
+  }
+};
+AudioSystem.init();
+
+let endingInterval = null;
+function changeScene(newScene) {
+  scene = newScene;
+  const globalNav = document.getElementById('global-nav');
+  if (scene === 'intro' || scene === 'headphones' || scene === 'ending') {
+    globalNav.classList.remove('active');
+  } else {
+    globalNav.classList.add('active');
+  }
+  
+  // Toggle gameplay board tray background active state
+  const tray = document.getElementById('board-bg-tray');
+  if (tray) {
+    if (scene === 'game') {
+      tray.classList.add('active');
+      tray.style.left = bx + 'px';
+      tray.style.top = by + 'px';
+      tray.style.width = boardW + 'px';
+      tray.style.height = boardH + 'px';
+    } else {
+      tray.classList.remove('active');
+    }
+  }
+
+  // Restore default hub background when returning to hub or intro
+  if (scene === 'hub' || scene === 'intro') {
+    document.body.style.backgroundImage = "url('images/back.png')";
+    document.body.style.backgroundPosition = "center center";
+  }
+  if (scene === 'ending') {
+    startEndingScene();
+  } else {
+    if (endingInterval) clearInterval(endingInterval);
+  }
+}
+
+function finishTypewriter() {
+  if (typewriterFinished) return;
+  typewriterFinished = true;
+  if (typewriterInterval) clearInterval(typewriterInterval);
+  AudioSystem.stopTypingSfx();
+  const tw = document.getElementById('typewriter-text');
+  tw.textContent = introText;
+  document.getElementById('btn-enter').classList.remove('hidden');
+}
+
+function goToHome() {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+  document.getElementById('gl').classList.remove('active');
+  document.getElementById('ui').classList.remove('active');
+  
+  document.getElementById('scene-intro').classList.add('active');
+  
+  if (typewriterInterval) clearInterval(typewriterInterval);
+  document.getElementById('typewriter-text').textContent = '';
+  document.getElementById('btn-enter').classList.add('hidden');
+  typewriterFinished = false;
+  
+  changeScene('intro');
+  AudioSystem.playBgm('music/首页bgm.mp3');
+}
+
+function startEndingScene() {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+  document.getElementById('gl').classList.remove('active');
+  document.getElementById('ui').classList.remove('active');
+  document.getElementById('scene-ending').classList.add('active');
+  
+  // Play dark, reflective briefing typewriter BGM
+  AudioSystem.playBgm('music/打字机bgm.mp3');
+  
+  const et = document.getElementById('ending-text');
+  et.textContent = '';
+  document.getElementById('btn-restart').classList.add('hidden');
+  
+  let i = 0;
+  AudioSystem.startTypingSfx();
+  const endingText = `最终口供汇总完毕。\n\n冷库中静静躺着的，正是珠宝商林某。\n妈妈桑织网数载，布下了这起骗保杀人的完美黑吃黑之局，\n将新来的侍女、酒保、红牌、歌女和打手全部卷入，化作她的棋子。\n\n她拿到了巨额保险，本该是大获全胜的赢家。\n\n然而，当你在酒馆暗室拉开她的私人保险柜时——\n那颗价值连城的蓝宝石，却以惊人平整的角度，被切成了均等两半。\n这里，只有一半。\n\n另一半……\n此刻正藏在某个你最意想不到的人手里。\n是酒保？歌女？还是某个早已借死遁逃的‘死人’？\n\n甚至，是此时此刻正站在吧台前、端着酒杯把玩真相的你？\n\n侦探，林森北路的夜风穿堂而过，冷得彻骨。\n酒馆的霓虹灯牌在风中发出滋滋的微弱短路声。\n案子结了。\n但真相，可能才刚刚开始……`;
+  
+  endingInterval = setInterval(() => {
+    et.textContent += endingText[i];
+    i++;
+    if (i >= endingText.length) {
+      clearInterval(endingInterval);
+      AudioSystem.stopTypingSfx();
+      setTimeout(() => {
+        document.getElementById('btn-restart').classList.remove('hidden');
+      }, 1500);
+    }
+  }, 75);
+  
+  // Quick skip typewriter on click
+  document.getElementById('scene-ending').onclick = (e) => {
+    if (e.target.id === 'btn-restart') return;
+    clearInterval(endingInterval);
+    AudioSystem.stopTypingSfx();
+    et.textContent = endingText;
+    document.getElementById('btn-restart').classList.remove('hidden');
+  };
+}
+
+document.getElementById('btn-restart').onclick = (e) => {
+  if (e) e.stopPropagation();
+  maxUnlockedLevel = 0;
+  currentLevel = 0;
+  coins = 0;
+  goToHome();
+};
+
+function goBackPage() {
+  if (scene === 'typewriter') {
+    goToHome();
+  } else if (scene === 'cover-reveal') {
+    document.getElementById('scene-cover-reveal').classList.remove('active');
+    document.getElementById('scene-typewriter').classList.add('active');
+    changeScene('typewriter');
+    finishTypewriter();
+    AudioSystem.playBgm('music/打字机bgm.mp3');
+  } else if (scene === 'hub') {
+    document.getElementById('scene-game-hub').classList.remove('active');
+    document.getElementById('scene-cover-reveal').classList.add('active');
+    changeScene('cover-reveal');
+    AudioSystem.playBgm('music/酒馆嘈杂声.mp3');
+  } else if (scene === 'game') {
+    document.getElementById('gl').classList.remove('active');
+    document.getElementById('ui').classList.remove('active');
+    document.getElementById('scene-game-hub').classList.add('active');
+    selectedBlock = null;
+    dragStart = null;
+    animating = false;
+    changeScene('hub');
+    renderHubLevels();
+  } else if (scene === 'victory' || scene === 'complete') {
+    changeScene('hub');
+    renderHubLevels();
+  }
+}
+
+document.getElementById('nav-back').onclick = goBackPage;
+document.getElementById('nav-home').onclick = goToHome;
+
+document.getElementById('scene-headphones').onclick = () => {
+  document.getElementById('scene-headphones').classList.remove('active');
+  document.getElementById('scene-intro').classList.add('active');
+  changeScene('intro');
+  AudioSystem.playBgm('music/首页bgm.mp3');
+};
+
+document.getElementById('btn-intro').onclick = () => {
+  document.getElementById('scene-intro').classList.remove('active');
+  document.getElementById('scene-typewriter').classList.add('active');
+  changeScene('typewriter');
+  
+  typewriterFinished = false;
+  AudioSystem.playBgm('music/打字机bgm.mp3');
+  
+  setTimeout(() => {
+    if (typewriterFinished) return;
+    let i = 0;
+    const tw = document.getElementById('typewriter-text');
+    tw.textContent = '';
+    AudioSystem.startTypingSfx();
+    typewriterInterval = setInterval(() => {
+      tw.textContent += introText[i];
+      i++;
+      if (i >= introText.length) {
+        clearInterval(typewriterInterval);
+        typewriterFinished = true;
+        AudioSystem.stopTypingSfx();
+        setTimeout(() => {
+          document.getElementById('btn-enter').classList.remove('hidden');
+        }, 1000);
+      }
+    }, 80);
+  }, 1000);
+};
+
+document.getElementById('scene-typewriter').onclick = (e) => {
+  if (e.target.closest('.global-nav')) return;
+  if (!typewriterFinished) {
+    finishTypewriter();
+  } else {
+    document.getElementById('scene-typewriter').classList.remove('active');
+    document.getElementById('scene-cover-reveal').classList.add('active');
+    changeScene('cover-reveal');
+    AudioSystem.playSfx('music/开门.mp3');
+    AudioSystem.playBgm('music/酒馆嘈杂声.mp3');
+  }
+};
+
+document.getElementById('scene-cover-reveal').onclick = (e) => {
+  if (e.target.closest('.global-nav')) return;
+  document.getElementById('scene-cover-reveal').classList.remove('active');
+  document.getElementById('scene-game-hub').classList.add('active');
+  changeScene('hub');
+  renderHubLevels();
+};
+
+// ===== SUSPECTS DATA (DOSSIER CARDS) =====
+const SUSPECTS = [
+  { name: '带刺的白玫瑰', nameEn: 'The Rookie', gradient: 'linear-gradient(135deg, #FFB6C1, #8B0000)', quote: '“那天晚上，他确实给了我很多小费，但我很早就下班了……”' },
+  { name: '精密的旁观者', nameEn: 'The Bartender', gradient: 'linear-gradient(135deg, #4682B4, #000000)', quote: '“我的眼里只有酒，不过，那天他的酒里，确实多了一丝不属于我的香水味。”' },
+  { name: '燃烧的红宝石', nameEn: 'The Top Hostess', gradient: 'linear-gradient(135deg, #DC143C, #4B0082)', quote: '“呵，那个男人？他不过是妈妈桑池塘里的一条鱼罢了，我才看不上。”' },
+  { name: '西装暴徒', nameEn: 'The Yakuza', gradient: 'linear-gradient(135deg, #D2691E, #000000)', quote: '“侦探，别多管闲事。他欠的债，用一条命还，或许还不够呢。”' },
+  { name: '褪色的金孔雀', nameEn: 'The Singer', gradient: 'linear-gradient(135deg, #C0C0C0, #191970)', quote: '“他说过要带我远走高飞的……直到我看到他走进了她的休息室。”' },
+  { name: '结网的黑寡妇', nameEn: 'The Madam', gradient: 'linear-gradient(135deg, #FFD700, #000000)', quote: '“在这家酒馆里，没有秘密，只有交易。你以为你找到了真相，其实，你只是喝醉了。”' }
+];
+let maxUnlockedLevel = 0; // global progression
+
+// ===== CONFIG =====
+const C = {
+  bgColor: [0.15, 0.11, 0.09, 1], // dark wood color
+  boardBg: [0.85, 0.78, 0.69, 1], // vintage paper/parchment
+  boardBorder: [0.35, 0.25, 0.20, 1], // dark brown ornate border
+  cellBg: [0.90, 0.85, 0.78, 1], // lighter cell
+  colors:{
+    green: [0.13, 0.55, 0.35, 1],   // emerald
+    orange: [0.95, 0.40, 0.15, 1],  // rich orange
+    yellow: [0.98, 0.75, 0.15, 1],  // gold/topaz
+    black: [0.20, 0.18, 0.22, 1],   // obsidian
+    purple: [0.55, 0.25, 0.65, 1],  // amethyst
+    darkBlue: [0.15, 0.35, 0.75, 1],// sapphire
+    lightBlue: [0.40, 0.70, 0.85, 1],
+    white: [0.95, 0.95, 0.92, 1],   // pearl
+    red: [0.85, 0.15, 0.25, 1],     // ruby
+    pink: [0.90, 0.40, 0.60, 1]     // rose quartz
+  },
+  gold:[0.85, 0.65, 0.25, 1],
+  btnColor:[0.35, 0.25, 0.20, 1],
+  cellPad:4, boardPad:24, cornerR:12
+};
+
+// ===== LEVELS =====
+const LEVELS = [
+  { cols:4, rows:5, tutorial:true,
+    blocks:[
+      {color:'green', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[0,0], cap:4},
+      {color:'orange', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[2,3], cap:4},
+    ],
+    dots:[
+      {color:'orange', pos:[2,0]},{color:'orange', pos:[3,0]},
+      {color:'orange', pos:[2,1]},{color:'orange', pos:[3,1]},
+      {color:'green', pos:[0,3]},{color:'green', pos:[1,3]},
+      {color:'green', pos:[0,4]},{color:'green', pos:[1,4]},
+    ]
+  },
+  { cols:5, rows:5,
+    blocks:[
+      {color:'yellow', cells:[[0,0],[1,0],[0,1]], pos:[1,1], cap:3},
+      {color:'black', cells:[[1,0],[0,1],[1,1]], pos:[2,2], cap:3},
+    ],
+    dots:[
+      {color:'yellow', pos:[0,0]},{color:'yellow', pos:[2,0]},{color:'yellow', pos:[0,2]},
+      {color:'black', pos:[4,2]},{color:'black', pos:[2,4]},{color:'black', pos:[4,4]},
+    ]
+  },
+  { cols:5, rows:6,
+    blocks:[
+      {color:'black', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[3,0], cap:4},
+      {color:'white', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[0,4], cap:4},
+      {color:'purple', cells:[[0,0],[0,1]], pos:[2,2], cap:2},
+    ],
+    dots:[
+      {color:'black', pos:[0,0]},{color:'black', pos:[1,1]},
+      {color:'black', pos:[0,2]},{color:'black', pos:[1,3]},
+      {color:'white', pos:[3,2]},{color:'white', pos:[4,3]},
+      {color:'white', pos:[3,4]},{color:'white', pos:[4,5]},
+      {color:'purple', pos:[2,1]},{color:'purple', pos:[2,4]},
+    ]
+  },
+  { cols:5, rows:6,
+    blocks:[
+      {color:'orange', cells:[[0,0],[1,0]], pos:[0,0], cap:2},
+      {color:'red', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[1,1], cap:4},
+      {color:'green', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[2,3], cap:4},
+      {color:'pink', cells:[[0,0],[1,0]], pos:[3,5], cap:2},
+    ],
+    dots:[
+      {color:'orange', pos:[2,0]},{color:'orange', pos:[3,0]},
+      {color:'red', pos:[4,0]},{color:'red', pos:[4,1]},
+      {color:'red', pos:[4,2]},{color:'red', pos:[0,2]},
+      {color:'green', pos:[0,3]},{color:'green', pos:[0,4]},
+      {color:'green', pos:[0,5]},{color:'green', pos:[4,4]},
+      {color:'pink', pos:[1,5]},{color:'pink', pos:[2,5]},
+    ]
+  },
+  { cols:7, rows:8,
+    blocks:[
+      {color:'green', cells:[[0,0],[1,0],[2,0]], pos:[2,2], cap:3},
+      {color:'red', cells:[[0,0],[1,0],[2,0]], pos:[2,3], cap:3},
+      {color:'purple', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[0,4], cap:4},
+      {color:'darkBlue', cells:[[0,0],[0,1],[0,2]], pos:[3,4], cap:3},
+      {color:'yellow', cells:[[0,0],[1,0],[0,1],[1,1]], pos:[4,6], cap:4},
+    ],
+    dots:[
+      {color:'darkBlue', pos:[3,0]},{color:'darkBlue', pos:[3,1]},{color:'darkBlue', pos:[3,7]},
+      {color:'green', pos:[1,2]},{color:'green', pos:[5,2]},{color:'green', pos:[6,2]},
+      {color:'red', pos:[0,2]},{color:'red', pos:[1,3]},{color:'red', pos:[5,3]},
+      {color:'purple', pos:[4,4]},{color:'purple', pos:[5,4]},{color:'purple', pos:[4,5]},{color:'purple', pos:[5,5]},
+      {color:'yellow', pos:[1,6]},{color:'yellow', pos:[2,6]},{color:'yellow', pos:[1,7]},{color:'yellow', pos:[2,7]},
+    ]
+  },
+  { cols:8, rows:8,
+    blocks:[
+      {color:'orange', cells:[[0,0],[1,0],[0,1]], pos:[2,1], cap:3},
+      {color:'pink', cells:[[0,0],[1,0],[1,1]], pos:[4,1], cap:3},
+      {color:'lightBlue', cells:[[0,0],[0,1]], pos:[1,2], cap:1},
+      {color:'yellow', cells:[[0,0],[0,1]], pos:[6,3], cap:2},
+      {color:'white', cells:[[0,0],[1,0],[2,0]], pos:[2,3], cap:3},
+      {color:'darkBlue', cells:[[0,0],[1,0],[2,0]], pos:[3,4], cap:3},
+      {color:'red', cells:[[0,0],[1,0],[2,0]], pos:[3,5], cap:3},
+      {color:'purple', cells:[[0,0],[1,0],[2,0]], pos:[1,6], cap:3},
+      {color:'green', cells:[[0,0]], pos:[5,6], cap:1},
+    ],
+    dots:[
+      {color:'orange', pos:[1,0]},{color:'orange', pos:[2,0]},{color:'orange', pos:[1,1]},{color:'yellow', pos:[4,2]},{color:'yellow', pos:[6,2]},
+      {color:'pink', pos:[5,0]},{color:'pink', pos:[6,0]},{color:'pink', pos:[6,1]},{color:'lightBlue', pos:[3,2]},
+      {color:'white', pos:[0,3]},{color:'white', pos:[0,4]},{color:'white', pos:[5,3]},
+      {color:'darkBlue', pos:[7,3]},{color:'darkBlue', pos:[7,4]},{color:'darkBlue', pos:[2,4]},
+      {color:'red', pos:[4,7]},{color:'red', pos:[5,7]},{color:'red', pos:[6,7]},
+      {color:'purple', pos:[1,7]},{color:'purple', pos:[2,7]},{color:'purple', pos:[3,7]},
+      {color:'green', pos:[6,6]},
+    ]
+  }
+];
+
+// ===== WEBGL SETUP =====
+const glC = document.getElementById('gl');
+const uiC = document.getElementById('ui');
+const gl = glC.getContext('webgl',{alpha:true,antialias:true});
+const ctx = uiC.getContext('2d');
+
+const vsSrc = `
+attribute vec2 a_pos;
+uniform vec2 u_res;
+uniform vec2 u_translate;
+uniform vec2 u_scale;
+varying vec2 v_uv;
+void main(){
+  v_uv = a_pos;
+  vec2 p = a_pos * u_scale + u_translate;
+  vec2 cp = (p / u_res)*2.0 - 1.0;
+  cp.y = -cp.y;
+  gl_Position = vec4(cp,0,1);
+}`;
+
+const fsSrc = `
+precision mediump float;
+varying vec2 v_uv;
+uniform vec4 u_color;
+uniform vec2 u_size;
+uniform float u_radius;
+uniform float u_shape;
+float rrSDF(vec2 p, vec2 b, float r){
+  vec2 q = abs(p)-b+vec2(r);
+  return min(max(q.x,q.y),0.0)+length(max(q,0.0))-r;
+}
+void main(){
+  vec2 p = (v_uv-0.5)*u_size;
+  float d;
+  if(u_shape>0.5){
+    d = length(p)-u_size.x*0.5;
+  } else {
+    d = rrSDF(p,u_size*0.5,u_radius);
+  }
+  float a = 1.0-smoothstep(-1.0,1.0,d);
+  
+  float highlight = smoothstep(0.5, 0.0, length(v_uv - vec2(0.3, 0.3)));
+  vec3 finalColor = u_color.rgb + highlight * 0.25;
+  
+  gl_FragColor = vec4(finalColor, u_color.a * a);
+}`;
+
+function createShader(type,src){
+  const s=gl.createShader(type);
+  gl.shaderSource(s,src); gl.compileShader(s);
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, createShader(gl.VERTEX_SHADER, vsSrc));
+gl.attachShader(prog, createShader(gl.FRAGMENT_SHADER, fsSrc));
+gl.linkProgram(prog); gl.useProgram(prog);
+
+const aPos = gl.getAttribLocation(prog,'a_pos');
+const uRes = gl.getUniformLocation(prog,'u_res');
+const uTrans = gl.getUniformLocation(prog,'u_translate');
+const uScale = gl.getUniformLocation(prog,'u_scale');
+const uColor = gl.getUniformLocation(prog,'u_color');
+const uSize = gl.getUniformLocation(prog,'u_size');
+const uRadius = gl.getUniformLocation(prog,'u_radius');
+const uShape = gl.getUniformLocation(prog,'u_shape');
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+// ===== GAME STATE =====
+let scene = 'headphones'; // headphones, intro, hub, game, victory, complete
+let victoryState = 'evidence'; // evidence, profiling
+let currentLevel = 0;
+const suspectsChars = [
+  ['稚', '怯'], // 0: 新人酒女 (青涩胆怯)
+  ['默', '冷'], // 1: 酒保 (沉默冷眼)
+  ['艳', '贪', '假'], // 2: 红牌酒女 (妖艳贪婪虚假)
+  ['暴', '狂', '狠', '凶'], // 3: 西装暴徒 (狂暴狠凶)
+  ['凄', '哀', '梦', '怨', '孤'], // 4: 褪色的金孔雀 (凄凉哀怨孤立)
+  ['阴', '狠', '毒', '险', '暗', '冷', '狡', '辣', '深']  // 5: 结网的黑寡妇 (阴险狠毒冷酷狡辣深沉)
+];
+let coins = 0;
+let board = null;
+let animating = false;
+let selectedBlock = null;
+let dragStart = null;
+let tutorialShown = false;
+let tutorialDismissed = false;
+let activeSpotlightPos = { x: window.innerWidth * 0.5, y: 0 };
+
+// Preload Luxury Bar Tabletop Background Image
+const boardBgImg = new Image();
+boardBgImg.src = 'images/board_bg.png';
+
+// Preload Cocktails Sprite Sheet
+const cocktailsSpriteImg = new Image();
+// cocktailsSpriteImg.src = 'images/cocktails.png'; // Commented out: file does not exist
+
+// Memory Canvas for transparent cocktails alpha-keying
+let cocktailsSpriteProcessed = false;
+let cocktailsSpriteTainted = false;
+const processedCocktailsCanvas = document.createElement('canvas');
+const processedCtx = processedCocktailsCanvas.getContext('2d');
+
+function processCocktailsSprite() {
+  if (cocktailsSpriteProcessed) return;
+  if (!cocktailsSpriteImg.complete || cocktailsSpriteImg.naturalWidth === 0) return;
+  
+  const w = cocktailsSpriteImg.naturalWidth;
+  const h = cocktailsSpriteImg.naturalHeight;
+  processedCocktailsCanvas.width = w;
+  processedCocktailsCanvas.height = h;
+  
+  processedCtx.drawImage(cocktailsSpriteImg, 0, 0);
+  
+  try {
+    const imgData = processedCtx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    
+    // Smoothly key out the black background to transparent with a high-fidelity feathered edge
+    const lowThresh = 10;
+    const highThresh = 45;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i+1];
+      const b = data[i+2];
+      // Calculate relative luminance / perceived brightness
+      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (brightness <= lowThresh) {
+        data[i+3] = 0;
+      } else if (brightness < highThresh) {
+        const factor = (brightness - lowThresh) / (highThresh - lowThresh);
+        data[i+3] = Math.round(data[i+3] * factor);
+      }
+    }
+    
+    processedCtx.putImageData(imgData, 0, 0);
+    cocktailsSpriteProcessed = true;
+    cocktailsSpriteTainted = false;
+  } catch (e) {
+    console.warn("Local CORS restriction detected for file:// protocol. Falling back to Screen Blending for cocktails sprite.", e);
+    // The canvas is tainted by the local file system protocol, so we will use hardware screen blending instead
+    cocktailsSpriteProcessed = true;
+    cocktailsSpriteTainted = true;
+  }
+}
+
+cocktailsSpriteImg.onload = processCocktailsSprite;
+
+// Preload blank testimony card texture
+const cardSpriteImg = new Image();
+// cardSpriteImg.src = 'images/testimony_card.png'; // Commented out: file does not exist, will use vector fallback in drawing code
+
+// Memory Canvas for transparent card alpha-keying
+let cardSpriteProcessed = false;
+let cardSpriteTainted = false;
+const processedCardCanvas = document.createElement('canvas');
+const processedCardCtx = processedCardCanvas.getContext('2d');
+
+function processCardSprite() {
+  if (cardSpriteProcessed) return;
+  if (!cardSpriteImg.complete || cardSpriteImg.naturalWidth === 0) return;
+  
+  const w = cardSpriteImg.naturalWidth;
+  const h = cardSpriteImg.naturalHeight;
+  processedCardCanvas.width = w;
+  processedCardCanvas.height = h;
+  
+  processedCardCtx.drawImage(cardSpriteImg, 0, 0);
+  
+  try {
+    const imgData = processedCardCtx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    
+    // Smoothly key out the black background to transparent with a high-fidelity feathered edge
+    const lowThresh = 12;
+    const highThresh = 50;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i+1];
+      const b = data[i+2];
+      // Calculate relative luminance / perceived brightness
+      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (brightness <= lowThresh) {
+        data[i+3] = 0;
+      } else if (brightness < highThresh) {
+        const factor = (brightness - lowThresh) / (highThresh - lowThresh);
+        data[i+3] = Math.round(data[i+3] * factor);
+      }
+    }
+    
+    processedCardCtx.putImageData(imgData, 0, 0);
+    cardSpriteProcessed = true;
+    cardSpriteTainted = false;
+  } catch (e) {
+    console.warn("Local CORS restriction detected for file:// protocol. Falling back to Screen Blending for blank card sprite.", e);
+    cardSpriteProcessed = true;
+    cardSpriteTainted = true;
+  }
+}
+
+cardSpriteImg.onload = processCardSprite;
+// Note: Drink tray texture removed per user request – blocks will now render only the wine glass without a tray background.
+
+let W,H;
+function resize(){
+  W=window.innerWidth; H=window.innerHeight;
+  glC.width=uiC.width=W; glC.height=uiC.height=H;
+  gl.viewport(0,0,W,H);
+  gl.uniform2f(uRes,W,H);
+  if (scene === 'hub') {
+    renderHubLevels();
+  }
+}
+window.addEventListener('resize',resize); resize();
+
+function drawRect(x,y,w,h,col,r=0){
+  gl.uniform2f(uTrans,x,y); gl.uniform2f(uScale,w,h);
+  gl.uniform4fv(uColor,col); gl.uniform2f(uSize,w,h);
+  gl.uniform1f(uRadius,r); gl.uniform1f(uShape,0);
+  gl.drawArrays(gl.TRIANGLES,0,6);
+}
+function drawCircle(cx,cy,r,col){
+  gl.uniform2f(uTrans,cx-r,cy-r); gl.uniform2f(uScale,r*2,r*2);
+  gl.uniform4fv(uColor,col); gl.uniform2f(uSize,r*2,r*2);
+  gl.uniform1f(uRadius,0); gl.uniform1f(uShape,1);
+  gl.drawArrays(gl.TRIANGLES,0,6);
+}
+
+// ===== TWEEN SYSTEM =====
+const tweens = [];
+function tween(obj,prop,to,dur,ease,cb){
+  tweens.push({obj,prop,from:obj[prop],to,dur,t:0,ease,cb});
+}
+function easeOut(t){return 1-(1-t)*(1-t)*(1-t)}
+function updateTweens(dt){
+  for(let i=tweens.length-1;i>=0;i--){
+    const tw=tweens[i]; tw.t+=dt;
+    const p=Math.min(tw.t/tw.dur,1);
+    const ep=tw.ease?tw.ease(p):p;
+    tw.obj[tw.prop]=tw.from+(tw.to-tw.from)*ep;
+    if(p>=1){if(tw.cb)tw.cb();tweens.splice(i,1);}
+  }
+}
+
+// ===== BOARD LOGIC =====
+function initLevel(idx){
+  const lv = LEVELS[idx];
+  const levelChars = suspectsChars[idx % suspectsChars.length];
+  
+  // Create a mapping from color to character for this level to ensure color-character consistency
+  const colorToChar = {};
+  lv.blocks.forEach((b, bIdx) => {
+    colorToChar[b.color] = levelChars[bIdx % levelChars.length];
+  });
+
+  board = {
+    cols:lv.cols, rows:lv.rows, tutorial:lv.tutorial||false,
+    blocks: lv.blocks.map((b, bIdx)=>({
+      color:b.color, cells:b.cells.map(c=>({x:c[0],y:c[1]})),
+      px:b.pos[0], py:b.pos[1], cap:b.cap, eaten:0,
+      eliminated:false, alpha:1, scale:1,
+      ax:0, ay:0,
+      blockIndex: bIdx,
+      char: colorToChar[b.color] || '?'
+    })),
+    dots: lv.dots.map((d, dIdx)=>({
+      color:d.color, x:d.pos[0], y:d.pos[1],
+      alive:true, alpha:1, scale:1,
+      char: colorToChar[d.color] || '?'
+    }))
+  };
+  tutorialDismissed = false;
+  tutorialShown = !!lv.tutorial;
+  calcBoardLayout();
+}
+
+let bx,by,cellSz,boardW,boardH;
+function calcBoardLayout(){
+  // On desktop, we constrain the board max width to let it fit nicely on the left
+  const desktopMode = W > 900;
+  const maxW = desktopMode ? W * 0.45 : W * 0.88;
+  const maxH = H * 0.72;
+  const pad = C.boardPad * 2;
+  cellSz = Math.min((maxW-pad)/board.cols,(maxH-pad)/board.rows);
+  cellSz = Math.floor(cellSz);
+  boardW = cellSz*board.cols+pad;
+  boardH = cellSz*board.rows+pad;
+  
+  if (desktopMode) {
+    bx = W / 2; // Left edge aligns exactly with the middle of the screen (1/2)
+  } else {
+    bx = (W-boardW)/2; // Centered on smaller screens
+  }
+  by = (H-boardH)/2+30;
+  board.blocks.forEach(b=>{
+    b.ax = bx+C.boardPad+b.px*cellSz;
+    b.ay = by+C.boardPad+b.py*cellSz;
+  });
+
+  // Update tray element bounds
+  const tray = document.getElementById('board-bg-tray');
+  if (tray) {
+    tray.style.left = bx + 'px';
+    tray.style.top = by + 'px';
+    tray.style.width = boardW + 'px';
+    tray.style.height = boardH + 'px';
+  }
+}
+
+function cellToPixel(cx,cy){
+  return {x:bx+C.boardPad+cx*cellSz, y:by+C.boardPad+cy*cellSz};
+}
+
+function getBlockWorldCells(b){
+  return b.cells.map(c=>({x:b.px+c.x, y:b.py+c.y}));
+}
+
+function isOccupiedByBlock(wx,wy,excludeBlock){
+  for(const b of board.blocks){
+    if(b===excludeBlock||b.eliminated) continue;
+    for(const c of b.cells){
+      if(b.px+c.x===wx && b.py+c.y===wy) return true;
+    }
+  }
+  return false;
+}
+
+function getDotAt(wx,wy){
+  return board.dots.find(d=>d.alive && d.x===wx && d.y===wy);
+}
+
+function tryMove(block, dx, dy){
+  if(animating||block.eliminated) return;
+  let moved = false;
+  let totalSteps = 0;
+  let steps = [];
+  let curPx=block.px, curPy=block.py;
+  while(true){
+    let nextPx=curPx+dx, nextPy=curPy+dy;
+    let blocked=false;
+    let dotsToEat=[];
+    for(const c of block.cells){
+      let wx=nextPx+c.x, wy=nextPy+c.y;
+      if(wx<0||wx>=board.cols||wy<0||wy>=board.rows){blocked=true;break;}
+      if(isOccupiedByBlock(wx,wy,block)){blocked=true;break;}
+      const dot=getDotAt(wx,wy);
+      if(dot){
+        if(dot.color===block.color){dotsToEat.push(dot);}
+        else{blocked=true;break;}
+      }
+    }
+    if(blocked) break;
+    curPx=nextPx; curPy=nextPy;
+    steps.push({px:curPx,py:curPy,dots:dotsToEat});
+    if(dotsToEat.length>0) break;
+  }
+  if(steps.length===0) return;
+  animating = true;
+  if(tutorialShown) tutorialDismissed = true;
+  const finalStep = steps[steps.length-1];
+  block.px = finalStep.px;
+  block.py = finalStep.py;
+  const targetPixel = cellToPixel(block.px, block.py);
+  const dur = Math.min(steps.length*0.08, 0.3);
+  tween(block,'ax',targetPixel.x,dur,easeOut);
+  tween(block,'ay',targetPixel.y,dur,easeOut,()=>{
+    for(const s of steps){
+      for(const d of s.dots){
+        d.alive=false;
+        block.eaten++;
+      }
+    }
+    if(block.eaten>=block.cap){
+      block.eliminated=true;
+      tween(block,'alpha',0,0.3,null);
+      tween(block,'scale',0,0.3,easeOut,()=>{
+        checkWin();
+        animating=false;
+      });
+    } else {
+      animating=false;
+      checkWin();
+    }
+  });
+}
+
+function checkWin(){
+  if(board.blocks.every(b=>b.eliminated)){
+    setTimeout(()=>{
+      victoryState = 'evidence';
+      changeScene('victory');
+    },400);
+  }
+}
+
+// ===== COLLISION LOGIC =====
+function checkCollision(lax, lay, block) {
+  const shrink = 0.1;
+  for(const c of block.cells) {
+    const left = lax + c.x * cellSz + shrink;
+    const top = lay + c.y * cellSz + shrink;
+    const right = lax + (c.x + 1) * cellSz - shrink;
+    const bottom = lay + (c.y + 1) * cellSz - shrink;
+    
+    if (left < 0 || right > board.cols * cellSz || top < 0 || bottom > board.rows * cellSz) return true;
+    
+    const minGX = Math.floor(left / cellSz);
+    const maxGX = Math.floor(right / cellSz);
+    const minGY = Math.floor(top / cellSz);
+    const maxGY = Math.floor(bottom / cellSz);
+    
+    for (let gx = minGX; gx <= maxGX; gx++) {
+      for (let gy = minGY; gy <= maxGY; gy++) {
+        if (gx < 0 || gx >= board.cols || gy < 0 || gy >= board.rows) continue;
+        if (isOccupiedByBlock(gx, gy, block)) return true;
+        const dot = getDotAt(gx, gy);
+        if (dot && dot.color !== block.color) return true;
+      }
+    }
+  }
+  return false;
+}
+checkCollision = checkCollision; // keep reference
+
+// ===== INPUT =====
+let dragInitialPos = null;
+
+function handleDown(e){
+  // Ignore clicks that land inside the global navigation
+  if (e.target.closest('.global-nav')) return;
+
+  const evt = e.changedTouches ? e.changedTouches[0] : e;
+  const mx=evt.clientX, my=evt.clientY;
+  if(scene==='intro' || scene==='hub' || scene==='cover-reveal') return;
+  
+  if(scene==='complete'){
+    const btnW=250,btnH=56;
+    const btnX=(W-btnW)/2, btnY=H*0.65;
+    if(mx>=btnX&&mx<=btnX+btnW&&my>=btnY&&my<=btnY+btnH){
+      changeScene('hub');
+      renderHubLevels(); // refresh visuals
+    }
+    return;
+  }
+
+  if(scene==='victory'){
+    let tw, th, ry, btnW, btnH, btnX, btnY;
+    if (victoryState === 'evidence') {
+      tw = Math.min(W * 0.92, 700);
+      th = Math.min(H * 0.82, 540);
+      ry = (H - th) / 2 - 20;
+      btnW = Math.min(tw - 100, 260);
+      btnH = 50;
+      btnX = (W - btnW) / 2;
+      btnY = ry + th - btnH - 35;
+    } else {
+      tw = Math.min(W * 0.88, 580);
+      th = Math.min(H * 0.72, 450);
+      ry = (H - th) / 2 - 20;
+      btnW = Math.min(tw - 100, 260);
+      btnH = 50;
+      btnX = (W - btnW) / 2;
+      btnY = ry + th - btnH - 35;
+    }
+    if(mx>=btnX&&mx<=btnX+btnW&&my>=btnY&&my<=btnY+btnH){
+      if (victoryState === 'evidence') {
+        victoryState = 'profiling';
+      } else {
+        coins+=20;
+        if(currentLevel === 5){
+          currentLevel++;
+          maxUnlockedLevel = Math.max(maxUnlockedLevel, currentLevel);
+          changeScene('ending');
+        } else {
+          currentLevel++;
+          maxUnlockedLevel = Math.max(maxUnlockedLevel, currentLevel);
+          changeScene('hub');
+          renderHubLevels(); // refresh grid to show new unlocked level!
+        }
+      }
+    }
+    return;
+  }
+
+  if(scene==='game'){
+    const homeBtnX = 20, homeBtnY = 15, homeBtnW = 135, homeBtnH = 36;
+    if(mx>=homeBtnX && mx<=homeBtnX+homeBtnW && my>=homeBtnY && my<=homeBtnY+homeBtnH){
+      changeScene('hub');
+      selectedBlock = null;
+      dragStart = null;
+      animating = false;
+      renderHubLevels();
+      return;
+    }
+  }
+  if(scene!=='game'||animating) return;
+  for(const b of board.blocks){
+    if(b.eliminated) continue;
+    for(const c of b.cells){
+      const cp=cellToPixel(b.px+c.x,b.py+c.y);
+      if(mx>=cp.x&&mx<=cp.x+cellSz&&my>=cp.y&&my<=cp.y+cellSz){
+        selectedBlock=b;
+        dragStart={x:mx,y:my};
+        dragInitialPos={x:b.ax, y:b.ay};
+        
+        board.blocks.splice(board.blocks.indexOf(b), 1);
+        board.blocks.push(b);
+        tween(b, 'scale', 1.08, 0.1, easeOut);
+        
+        if(tutorialShown) tutorialDismissed = true;
+        return;
+      }
+    }
+  }
+}
+
+function handleMove(e){
+  if(!selectedBlock||!dragStart||animating) return;
+  if(e.cancelable) e.preventDefault();
+  
+  const evt = e.changedTouches ? e.changedTouches[0] : e;
+  const targetAx = dragInitialPos.x + (evt.clientX - dragStart.x);
+  const targetAy = dragInitialPos.y + (evt.clientY - dragStart.y);
+  
+  const targetLax = targetAx - (bx + C.boardPad);
+  const targetLay = targetAy - (by + C.boardPad);
+  
+  let curLax = selectedBlock.ax - (bx + C.boardPad);
+  let curLay = selectedBlock.ay - (by + C.boardPad);
+  
+  // Step towards target in X
+  let diffX = targetLax - curLax;
+  let stepX = Math.sign(diffX);
+  let stepsX = Math.abs(Math.round(diffX));
+  for(let i=0; i<stepsX; i++){
+    if(checkCollision(curLax + stepX, curLay, selectedBlock)) break;
+    curLax += stepX;
+  }
+  
+  // Step towards target in Y
+  let diffY = targetLay - curLay;
+  let stepY = Math.sign(diffY);
+  let stepsY = Math.abs(Math.round(diffY));
+  for(let i=0; i<stepsY; i++){
+    if(checkCollision(curLax, curLay + stepY, selectedBlock)) break;
+    curLay += stepY;
+  }
+  
+  selectedBlock.ax = curLax + (bx + C.boardPad);
+  selectedBlock.ay = curLay + (by + C.boardPad);
+  
+  let currentPx = Math.round(curLax / cellSz);
+  let currentPy = Math.round(curLay / cellSz);
+  
+  let ateSomething = false;
+  for(const c of selectedBlock.cells) {
+    let wx = currentPx + c.x;
+    let wy = currentPy + c.y;
+    const dot = getDotAt(wx, wy);
+    if(dot && dot.color === selectedBlock.color) {
+      let nx = Math.abs(curLax - currentPx * cellSz) / cellSz;
+      let ny = Math.abs(curLay - currentPy * cellSz) / cellSz;
+      if ((1 - nx) * (1 - ny) >= 0.5) {
+        dot.alive = false;
+        selectedBlock.eaten++;
+        ateSomething = true;
+      }
+    }
+  }
+
+  if (ateSomething) {
+    if (selectedBlock.eaten >= selectedBlock.cap) {
+      let block = selectedBlock;
+      block.eliminated = true;
+      block.px = currentPx;
+      block.py = currentPy;
+      selectedBlock = null;
+      dragStart = null;
+      
+      animating = true;
+      const targetPixel = cellToPixel(currentPx, currentPy);
+      tween(block, 'ax', targetPixel.x, 0.15, easeOut);
+      tween(block, 'ay', targetPixel.y, 0.15, easeOut, () => {
+        tween(block, 'alpha', 0, 0.3, null);
+        tween(block, 'scale', 0, 0.3, easeOut, () => {
+          checkWin();
+          animating = false;
+        });
+      });
+    }
+  }
+}
+
+function handleUp(e){
+  if(!selectedBlock||!dragStart) return;
+  if(animating) {
+    selectedBlock=null; dragStart=null; return;
+  }
+  
+  const block = selectedBlock;
+  selectedBlock = null;
+  dragStart = null;
+  
+  tween(block, 'scale', 1.0, 0.15, easeOut);
+  
+  let curLax = block.ax - (bx + C.boardPad);
+  let curLay = block.ay - (by + C.boardPad);
+  
+  let targetPx = Math.round(curLax / cellSz);
+  let targetPy = Math.round(curLay / cellSz);
+  
+  animating = true;
+  const targetPixel = cellToPixel(targetPx, targetPy);
+  
+  tween(block, 'ax', targetPixel.x, 0.15, easeOut);
+  tween(block, 'ay', targetPixel.y, 0.15, easeOut, ()=>{
+    block.px = targetPx;
+    block.py = targetPy;
+    
+    for(const c of block.cells) {
+      let wx = block.px + c.x;
+      let wy = block.py + c.y;
+      const dot = getDotAt(wx, wy);
+      if(dot && dot.color === block.color) {
+        dot.alive = false;
+        block.eaten++;
+      }
+    }
+    
+    if(block.eaten >= block.cap) {
+      block.eliminated = true;
+      tween(block,'alpha',0,0.3,null);
+      tween(block,'scale',0,0.3,easeOut,()=>{
+        checkWin();
+        animating=false;
+      });
+    } else {
+      animating = false;
+      checkWin();
+    }
+  });
+}
+
+document.addEventListener('mousedown', handleDown);
+document.addEventListener('touchstart', handleDown, {passive: false});
+document.addEventListener('mousemove', handleMove, {passive: false});
+document.addEventListener('touchmove', handleMove, {passive: false});
+document.addEventListener('mouseup', handleUp);
+document.addEventListener('touchend', handleUp);
+
+// ===== RENDERING =====
+function renderHub(){
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+  ctx.clearRect(0,0,W,H);
+  document.getElementById('gl').classList.remove('active');
+  document.getElementById('ui').classList.remove('active');
+  document.getElementById('scene-game-hub').classList.add('active');
+}
+
+function renderGame(){
+  // Dynamic chroma-key processing for cocktails sprite sheet and blank card sprite
+  if (!cocktailsSpriteProcessed) processCocktailsSprite();
+  if (!cardSpriteProcessed) processCardSprite();
+
+  document.getElementById('gl').classList.add('active');
+  document.getElementById('ui').classList.add('active');
+  document.getElementById('scene-game-hub').classList.remove('active');
+
+  // Keep WebGL canvas clear since we render gameplay on Canvas 2D for high-end shadows/neon glow
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+  
+  // UI layer Canvas 2D clear
+  ctx.clearRect(0,0,W,H);
+
+  // Helper: Color mapping utility for neon lighting effects (hoisted function)
+  function getNeonStyle(color) {
+    switch (color) {
+      case 'green': return { core: '#39ff14', glow: 'rgba(57, 255, 20, 0.8)' }; // Absinthe
+      case 'orange': return { core: '#ff7700', glow: 'rgba(255, 119, 0, 0.8)' }; // Whiskey
+      case 'yellow': return { core: '#ffdd00', glow: 'rgba(255, 221, 0, 0.8)' }; // Lemon
+      case 'black': return { core: '#ff2a2a', glow: 'rgba(255, 42, 42, 0.8)' }; // Dark Stout
+      case 'purple': return { core: '#d000ff', glow: 'rgba(208, 0, 255, 0.8)' }; // Violet
+      case 'white': return { core: '#ffffff', glow: 'rgba(255, 255, 255, 0.8)' }; // Frosted Gin
+      case 'darkBlue': return { core: '#00a6ff', glow: 'rgba(0, 166, 255, 0.8)' }; // Sapphire
+      case 'lightBlue': return { core: '#00ffff', glow: 'rgba(0, 255, 255, 0.8)' }; // Cyan Lagoon
+      case 'red': return { core: '#ff3366', glow: 'rgba(255, 51, 102, 0.8)' }; // Campari
+      case 'pink': return { core: '#ff00bb', glow: 'rgba(255, 0, 187, 0.8)' }; // Rosé
+      default: return { core: '#ffffff', glow: 'rgba(255, 255, 255, 0.8)' };
+    }
+  }
+
+  // 1. Board background table drawing removed (handled by DOM element #board-bg-tray)
+
+  // 3. Simple, High-Contrast Clean Grid
+  ctx.save();
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.15)'; // Ultra-thin, low-opacity gold lines
+  ctx.lineWidth = 1;
+  
+  // Vertical and horizontal fine grid lines (solid, thin, clean)
+  for(let c = 1; c < board.cols; c++) {
+    const cp = cellToPixel(c, 0);
+    ctx.beginPath();
+    ctx.moveTo(cp.x, by + C.boardPad);
+    ctx.lineTo(cp.x, by + boardH - C.boardPad);
+    ctx.stroke();
+  }
+  for(let r = 1; r < board.rows; r++) {
+    const cp = cellToPixel(0, r);
+    ctx.beginPath();
+    ctx.moveTo(bx + C.boardPad, cp.y);
+    ctx.lineTo(bx + boardW - C.boardPad, cp.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 3. Glowing Retro Testimony Cards printed with Suspect's Lies (印有汉字的真实档案牌)
+  for(const d of board.dots){
+    if(!d.alive) continue;
+    const cp = cellToPixel(d.x, d.y);
+    const cx = cp.x + cellSz / 2;
+    const cy = cp.y + cellSz / 2;
+    
+    ctx.save();
+    
+    const neon = getNeonStyle(d.color);
+    // Vertical rectangular card layout: 3:4 aspect ratio
+    const cardW = cellSz * 0.58 * d.scale;
+    const cardH = cardW * 1.35;
+    const rx = cx - cardW / 2;
+    const ry = cy - cardH / 2;
+
+    // A. Soft, premium neon atmospheric halo/glow behind the card tile
+    ctx.save();
+    ctx.shadowBlur = 16 * d.scale;
+    ctx.shadowColor = neon.core;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rx + 2, ry + 2, cardW - 4, cardH - 4, 6);
+    } else {
+      ctx.rect(rx + 2, ry + 2, cardW - 4, cardH - 4);
+    }
+    ctx.fill();
+    ctx.restore();
+
+    // B. Draw the highly realistic preloaded retro wooden card image
+    ctx.save();
+    if (cardSpriteProcessed) {
+      if (cardSpriteTainted) {
+        // Under local file CORS environment, use hardware screen blending to filter out the black background
+        ctx.globalCompositeOperation = 'screen';
+        ctx.drawImage(cardSpriteImg, rx, ry, cardW, cardH);
+      } else {
+        // Draw from the beautifully alpha-processed transparent canvas
+        ctx.drawImage(processedCardCanvas, rx, ry, cardW, cardH);
+      }
+    } else {
+      // Fallback: draw a premium vintage mahogany rounded card tile in vector code
+      ctx.fillStyle = 'rgba(28, 20, 16, 0.95)';
+      ctx.strokeStyle = neon.core;
+      ctx.lineWidth = 1.5 * d.scale;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(rx, ry, cardW, cardH, 5);
+      } else {
+        ctx.rect(rx, ry, cardW, cardH);
+      }
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // C. Elegant Chinese Character printed in the center of the card
+    ctx.save();
+    ctx.fillStyle = '#ffffff'; // White ink core
+    ctx.font = `bold ${Math.floor(cardW * 0.42)}px "Microsoft YaHei", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Soft, refined neon stroke under the text for a sophisticated atmospheric glow
+    ctx.strokeStyle = neon.core;
+    // Tray background removed per user request – only wine glass will be drawn
+    ctx.lineWidth = 1.8 * d.scale;
+    ctx.shadowBlur = 5 * d.scale;
+    ctx.shadowColor = neon.core;
+    ctx.strokeText(d.char || '?', cx, cy);
+    ctx.fillText(d.char || '?', cx, cy);
+    ctx.restore();
+    
+    ctx.restore();
+  }
+
+  // 4. Sleek Frosted Glass Drink Trays & Minimalist Wine Glasses (高级霓虹酒托与极简酒杯)
+  for(const b of board.blocks){
+    if(b.eliminated&&b.alpha<=0) continue;
+    const sc = b.scale;
+    const neon = getNeonStyle(b.color);
+
+    for(const c of b.cells){
+      const px = b.ax + c.x * cellSz;
+      const py = b.ay + c.y * cellSz;
+      const sz = cellSz - C.cellPad;
+      const off = (cellSz - sz * sc) / 2;
+      
+      const rx = px + off;
+      const ry = py + off;
+      const rsz = sz * sc;
+
+      ctx.save();
+// Tray background removed per user request – no background drawn
+      ctx.restore();
+
+      // B. Sharp, elegant neon border representing the tray edge
+      ctx.shadowBlur = 10 * sc;
+      ctx.shadowColor = neon.core;
+      ctx.strokeStyle = neon.core;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(rx, ry, rsz, rsz, 6);
+      } else {
+        ctx.rect(rx, ry, rsz, rsz);
+      }
+      ctx.stroke();
+
+      // C. Subtle top/left bevel highlight for 3D glass tray look
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(rx + 2, ry + rsz - 2);
+      ctx.lineTo(rx + 2, ry + 2);
+      ctx.lineTo(rx + rsz - 2, ry + 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // D. Draw the minimalist vector wine glass in the center of each tray cell!
+      if (sc > 0.4) {
+        const cx_cell = rx + rsz / 2;
+        const cy_cell = ry + rsz / 2;
+        const cupR = rsz * 0.28;
+
+        ctx.save();
+        ctx.strokeStyle = neon.core;
+        ctx.lineWidth = 2 * sc;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowBlur = 8 * sc;
+        ctx.shadowColor = neon.core;
+
+        // 1. Draw Base
+        ctx.beginPath();
+        ctx.moveTo(cx_cell - cupR * 0.5, cy_cell + cupR * 0.7);
+        ctx.lineTo(cx_cell + cupR * 0.5, cy_cell + cupR * 0.7);
+        ctx.stroke();
+
+        // 2. Draw Stem
+        ctx.beginPath();
+        ctx.moveTo(cx_cell, cy_cell + cupR * 0.7);
+        ctx.lineTo(cx_cell, cy_cell + cupR * 0.1);
+        ctx.stroke();
+
+        // 3. Draw Bowl (Martini/Coupe V-shape)
+        ctx.beginPath();
+        ctx.moveTo(cx_cell - cupR * 0.7, cy_cell - cupR * 0.5);
+        ctx.lineTo(cx_cell, cy_cell + cupR * 0.1);
+        ctx.lineTo(cx_cell + cupR * 0.7, cy_cell - cupR * 0.5);
+        ctx.closePath();
+        ctx.stroke();
+
+        // 4. Specular highlight line in white for luxury glass glint
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5 * sc;
+        ctx.beginPath();
+        ctx.moveTo(cx_cell - cupR * 0.4, cy_cell - cupR * 0.1);
+        ctx.lineTo(cx_cell + cupR * 0.4, cy_cell - cupR * 0.1);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+  }
+
+  // 5. Home Button (返回酒馆)
+  const homeBtnX = 20, homeBtnY = 15, homeBtnW = 135, homeBtnH = 36;
+  ctx.save();
+  ctx.fillStyle = '#221510'; // boardBorder
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(homeBtnX - 2, homeBtnY - 2, homeBtnW + 4, homeBtnH + 4, 18);
+  } else {
+    ctx.rect(homeBtnX - 2, homeBtnY - 2, homeBtnW + 4, homeBtnH + 4);
+  }
+  ctx.fill();
+
+  ctx.fillStyle = '#f4ebd0'; // boardBg
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(homeBtnX, homeBtnY, homeBtnW, homeBtnH, 16);
+  } else {
+    ctx.rect(homeBtnX, homeBtnY, homeBtnW, homeBtnH);
+  }
+  ctx.fill();
+  
+  ctx.strokeStyle = 'rgba(201, 169, 110, 0.4)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
+  // Home button text
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#5D4037'; ctx.font = 'bold 14px "Georgia", serif';
+  ctx.fillText('返回酒馆', homeBtnX + homeBtnW/2, homeBtnY + homeBtnH/2);
+
+
+  // 6. Retro Typography UI Text with subtle micro-glows
+
+
+  // Capacity numbers on blocks (Elegant glowing thin typography)
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '300 '+Math.floor(cellSz*0.28)+'px "Inter", "Segoe UI", sans-serif'; // Sleek, thin font
+  for(const b of board.blocks){
+    if(b.eliminated&&b.alpha<=0) continue;
+    let maxC = b.cells[0];
+    for(const c of b.cells){
+      if(c.x+c.y>=maxC.x+maxC.y) maxC=c;
+    }
+    const px = b.ax+maxC.x*cellSz+cellSz*0.75;
+    const py = b.ay+maxC.y*cellSz+cellSz*0.75;
+    const neon = getNeonStyle(b.color);
+    
+    // Crisp white text with intense neon glow
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = neon.core;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(''+(b.cap-b.eaten),px,py);
+  }
+  ctx.restore();
+
+  // Tutorial Prompt
+  if(tutorialShown&&!tutorialDismissed){
+    const tutW = 280;
+    const tutH = 46;
+    const tutX = bx + boardW / 2 - tutW / 2;
+    const tutY = by + boardH + 20;
+
+    // Draw dark gold-bordered capsule for high readability on any background art
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(tutX, tutY, tutW, tutH, 23);
+    } else {
+      ctx.rect(tutX, tutY, tutW, tutH);
+    }
+    ctx.fillStyle = 'rgba(15, 10, 8, 0.88)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(201, 169, 110, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // High-contrast elegant text
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f4ebd0';
+    ctx.font = 'bold 18px "Georgia", serif';
+    ctx.fillText('推杯换盏，消除证言', bx + boardW / 2, tutY + tutH / 2);
+    ctx.restore();
+
+    // Bouncing indicator arrow
+    const t=Date.now()/1000;
+    const handY=Math.sin(t*3)*10;
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#c9a96e';
+    ctx.font='bold 28px "Georgia", serif';
+    ctx.fillText('▲', bx + boardW / 2, by + boardH + 95 + handY);
+    ctx.restore();
+  }
+}
+
+function renderVictory(){
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+  ctx.clearRect(0,0,W,H);
+  
+  let tw, th, rx, ry, btnW, btnH, bx, by;
+  
+  const suspect = suspectsList[currentLevel] || suspectsList[0];
+  const evidenceTitle = suspect.evidenceTitle || '获得证物：未知物品';
+  const profilingText = suspect.profilingText || '盘问取得了实质性突破，证物与死者在酒馆中遭遇袭击高度吻合。';
+  const victoryBtnText = suspect.victoryBtnText || '继续盘问';
+
+  if (victoryState === 'evidence') {
+    tw = Math.min(W * 0.92, 700);
+    th = Math.min(H * 0.82, 540);
+    rx = (W - tw) / 2;
+    ry = (H - th) / 2 - 20;
+    btnW = Math.min(tw - 100, 260);
+    btnH = 50;
+    bx = (W - btnW) / 2;
+    by = ry + th - btnH - 35;
+    // ==========================================
+    // STAGE 1: EVIDENCE DISCOVERY (获得证物)
+    // ==========================================
+    
+    // 1. Dark warm mahogany desk background overlay
+    ctx.save();
+    const bgGrad = ctx.createRadialGradient(W/2, H/2, 20, W/2, H/2, Math.max(W, H)*0.7);
+    bgGrad.addColorStop(0, '#1a130e'); 
+    bgGrad.addColorStop(1, '#050302'); 
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+
+    ctx.save();
+    // 2. Velvet tray shadow
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    
+    // 3. Ornate vintage display frame (Black velvet tray with bronze borders)
+    ctx.fillStyle = '#0f0c08'; // dark backing
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rx, ry, tw, th, 14);
+    } else {
+      ctx.rect(rx, ry, tw, th);
+    }
+    ctx.fill();
+
+    // Dark velvet inner layer
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#050403'; 
+    ctx.beginPath();
+    const inset = 12;
+    if (ctx.roundRect) {
+      ctx.roundRect(rx + inset, ry + inset, tw - inset*2, th - inset*2, 8);
+    } else {
+      ctx.rect(rx + inset, ry + inset, tw - inset*2, th - inset*2);
+    }
+    ctx.fill();
+
+    // Thick antique bronze/gold border
+    ctx.strokeStyle = '#c9a96e';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rx + inset, ry + inset, tw - inset*2, th - inset*2, 8);
+    } else {
+      ctx.rect(rx + inset, ry + inset, tw - inset*2, th - inset*2);
+    }
+    ctx.stroke();
+
+    // 4. Gold-leaf corner brackets
+    const drawBracket = (cx, cy, rotateAngle) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotateAngle * Math.PI / 180);
+      ctx.fillStyle = '#c9a96e';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(24, 0);
+      ctx.lineTo(24, 6);
+      ctx.lineTo(6, 6);
+      ctx.lineTo(6, 24);
+      ctx.lineTo(0, 24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+    drawBracket(rx + inset, ry + inset, 0);
+    drawBracket(rx + tw - inset, ry + inset, 90);
+    drawBracket(rx + tw - inset, ry + th - inset, 180);
+    drawBracket(rx + inset, ry + th - inset, 270);
+    ctx.restore();
+
+    // 5. Title "获得了新线索" & Evidence Name
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#c9a96e'; 
+    ctx.font = 'bold 15px "Georgia", serif';
+    ctx.fillText('获得了新线索', W / 2, ry + 32);
+
+    ctx.fillStyle = '#ff3366'; 
+    ctx.font = 'bold 22px "Georgia", serif';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = 'rgba(255, 51, 102, 0.4)';
+    ctx.fillText(evidenceTitle.replace('获得证物：', '').replace('【','').replace('】',''), W / 2, ry + 56);
+    ctx.restore();
+
+    // 6. Centered evidence image inside a gold bevel (NO white border)
+    if (suspect.evidenceImgObj) {
+      ctx.save();
+      const imgSz = Math.floor(Math.min(Math.min(tw - 60, th - 190), 340));
+      const imgX = W / 2 - imgSz / 2;
+      const imgY = ry + 84;
+      
+      // Shadow behind the item
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      
+      // Draw image
+      if (suspect.evidenceImgObj.complete && suspect.evidenceImgObj.naturalWidth !== 0) {
+        ctx.drawImage(suspect.evidenceImgObj, imgX, imgY, imgSz, imgSz);
+      } else {
+        ctx.fillStyle = '#1c1510';
+        ctx.fillRect(imgX, imgY, imgSz, imgSz);
+        ctx.fillStyle = '#c9a96e';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('线索载入中...', W/2, imgY + imgSz/2);
+      }
+      ctx.restore();
+    }
+
+    // 7. Action Button: [ 分析案情 ]
+    ctx.save();
+    ctx.fillStyle = '#1e130d'; 
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(bx, by, btnW, btnH, 25);
+    } else {
+      ctx.rect(bx, by, btnW, btnH);
+    }
+    ctx.fill();
+    
+    ctx.strokeStyle = '#c9a96e';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px "Georgia", serif';
+    ctx.fillText('分析案情', W / 2, by + btnH / 2);
+    ctx.restore();
+
+  } else {
+    // ==========================================
+    // STAGE 2: CASE NOTES & NARRATIVE (案情侧写)
+    // ==========================================
+    tw = Math.min(W * 0.88, 580);
+    th = Math.min(H * 0.72, 450);
+    rx = (W - tw) / 2;
+    ry = (H - th) / 2 - 20;
+    btnW = Math.min(tw - 100, 260);
+    btnH = 50;
+    bx = (W - btnW) / 2;
+    by = ry + th - btnH - 35;
+    
+    ctx.save();
+    // 1. Dossier Case Paper Shadow
+    ctx.shadowBlur = 35;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+    
+    // 2. Vintage document paper background
+    ctx.fillStyle = '#f4ebd0'; // vintage case file paper tone
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rx, ry, tw, th, 12);
+    } else {
+      ctx.rect(rx, ry, tw, th);
+    }
+    ctx.fill();
+    
+    // Gold-bordered trim
+    ctx.shadowBlur = 0; 
+    ctx.strokeStyle = '#c9a96e';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // 3. Official confidential stamp style title
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#8b0000'; // crimson
+    ctx.font = 'bold 20px "Georgia", serif';
+    ctx.shadowBlur = 3;
+    ctx.shadowColor = 'rgba(139, 0, 0, 0.1)';
+    ctx.fillText('林森北路分局 · 案情侧写', W / 2, ry + 36);
+    ctx.restore();
+
+    // Fine decorative divider line
+    ctx.save();
+    ctx.strokeStyle = 'rgba(139, 90, 43, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(rx + 40, ry + 72);
+    ctx.lineTo(rx + tw - 40, ry + 72);
+    ctx.stroke();
+    ctx.restore();
+
+    // 4. Draw smaller evidence photo on the right of the case notes (NO white background)
+    let smallImgSz = 0;
+    if (suspect.evidenceImgObj) {
+      ctx.save();
+      smallImgSz = Math.floor(Math.min(115, tw * 0.23));
+      const imgX = rx + tw - smallImgSz - 45;
+      const imgY = ry + 95;
+
+      // Dark backing (velvet tray style)
+      ctx.fillStyle = '#0f0c08';
+      ctx.beginPath();
+      const padding = 6;
+      if (ctx.roundRect) {
+        ctx.roundRect(imgX - padding, imgY - padding, smallImgSz + padding * 2, smallImgSz + padding * 2, 4);
+      } else {
+        ctx.rect(imgX - padding, imgY - padding, smallImgSz + padding * 2, smallImgSz + padding * 2);
+      }
+      ctx.fill();
+
+      // Golden outer stroke
+      ctx.strokeStyle = '#c9a96e';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Image core
+      if (suspect.evidenceImgObj.complete && suspect.evidenceImgObj.naturalWidth !== 0) {
+        ctx.drawImage(suspect.evidenceImgObj, imgX, imgY, smallImgSz, smallImgSz);
+      } else {
+        ctx.fillStyle = '#1c1510';
+        ctx.fillRect(imgX, imgY, smallImgSz, smallImgSz);
+      }
+      ctx.restore();
+    }
+
+    // 5. Typewriter Profiling Narrative text (Wrapped layout next to the photo)
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#2c1b11'; // inky typewriter lead-type dark brown
+    ctx.font = 'bold 15px "Georgia", serif';
+    
+    const textX = rx + 45;
+    const startY = ry + 95;
+    const maxW = tw - 90 - (smallImgSz > 0 ? (smallImgSz + 15) : 0);
+    const lineH = 24;
+
+    // Wrap and draw multiline paragraphs
+    const paragraphs = profilingText.split('\n');
+    let currentY = startY;
+    
+    paragraphs.forEach(para => {
+      let line = '';
+      for (let n = 0; n < para.length; n++) {
+        let testLine = line + para[n];
+        let metrics = ctx.measureText(testLine);
+        if (metrics.width > maxW && n > 0) {
+          ctx.fillText(line, textX, currentY);
+          line = para[n];
+          currentY += lineH;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, textX, currentY);
+      currentY += lineH * 1.35; // spacing between paragraphs
+    });
+    ctx.restore();
+
+    // 5. Action Button (继续盘问 / 终局：揭开最终真相)
+    if (currentLevel === 5) {
+      // High-precision clock based animation for Level 6 final button
+      const time = performance.now() / 1000;
+      const breathe = 0.5 + 0.5 * Math.sin(time * 5);
+      const fVal = Math.sin(time * 25);
+      const flickers = fVal > 0.8 || (fVal < -0.2 && fVal > -0.5); 
+      
+      ctx.save();
+      ctx.shadowColor = flickers ? 'rgba(255, 215, 0, 0.95)' : 'rgba(255, 140, 0, 0.75)';
+      ctx.shadowBlur = 18 + breathe * 16;
+      
+      ctx.fillStyle = 'rgba(255, 215, 0, ' + (0.05 + breathe * 0.08) + ')';
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(bx - 8, by - 8, btnW + 16, btnH + 16, 29);
+      } else {
+        ctx.rect(bx - 8, by - 8, btnW + 16, btnH + 16);
+      }
+      ctx.fill();
+      
+      const btnGrad = ctx.createLinearGradient(bx, by, bx, by + btnH);
+      btnGrad.addColorStop(0, '#2e1f06');
+      btnGrad.addColorStop(0.5, '#120b02');
+      btnGrad.addColorStop(1, '#000000');
+      ctx.fillStyle = btnGrad;
+      
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(bx, by, btnW, btnH, 25);
+      } else {
+        ctx.rect(bx, by, btnW, btnH);
+      }
+      ctx.fill();
+      
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = flickers ? '#ffffff' : '#ffd700';
+      ctx.lineWidth = 2.5 + Math.sin(time * 12) * 0.5;
+      ctx.stroke();
+      
+      ctx.strokeStyle = flickers ? '#ffd700' : '#ff4500';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(bx + 3, by + 3, btnW - 6, btnH - 6, 22);
+      } else {
+        ctx.rect(bx + 3, by + 3, btnW - 6, btnH - 6);
+      }
+      ctx.stroke();
+      ctx.restore();
+      
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = flickers ? '#ffffff' : '#ffd700';
+      ctx.font = 'bold 16px "Georgia", serif';
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 4 + breathe * 4;
+      ctx.fillText(victoryBtnText, W / 2, by + btnH / 2);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.fillStyle = '#1e130d'; // C.btnColor
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(bx, by, btnW, btnH, 25);
+      } else {
+        ctx.rect(bx, by, btnW, btnH);
+      }
+      ctx.fill();
+      
+      ctx.strokeStyle = '#c9a96e';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px "Georgia", serif';
+      ctx.fillText(victoryBtnText, W / 2, by + btnH / 2);
+      ctx.restore();
+    }
+  }
+}
+
+function renderComplete(){
+  gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+  ctx.clearRect(0,0,W,H);
+  
+  const tw=280,th=160;
+  const rx=(W-tw)/2, ry=H*0.25;
+  const btnW=250,btnH=56;
+  const bx=(W-btnW)/2, by=H*0.65;
+  
+  ctx.save();
+  // Complete Box
+  ctx.fillStyle = '#f4ebd0';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(rx, ry, tw, th, 20);
+  } else {
+    ctx.rect(rx, ry, tw, th);
+  }
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(201, 169, 110, 0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  
+  // Restart button
+  ctx.fillStyle = '#1e130d';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(bx, by, btnW, btnH, 28);
+  } else {
+    ctx.rect(bx, by, btnW, btnH);
+  }
+  ctx.fill();
+  
+  ctx.strokeStyle = '#c9a96e';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  
+  // Text layers
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#8b0000'; ctx.font='bold 32px "Georgia", serif';
+  ctx.fillText('案结',W/2,H*0.25+th/2-20);
+  
+  ctx.fillStyle='#f4ebd0'; ctx.font='bold 24px "Georgia", serif';
+  ctx.fillText('找出真相！',W/2,H*0.25+th/2+30);
+  
+  ctx.fillStyle='#888'; ctx.font='16px "Georgia", serif';
+  ctx.fillText('总线索: '+coins,W/2,H*0.25+th+20);
+  
+  ctx.fillStyle='#fff'; ctx.font='bold 20px "Georgia", serif';
+  ctx.fillText('重新案发',W/2,H*0.65+btnH/2);
+}
+
+function updateSpotlightVisuals() {
+  // Spotlight columns replaced with cinematic suspect cards
+}
+
+// ===== MAIN LOOP =====
+let lastTime=0;
+function loop(ts){
+  const dt=Math.min((ts-lastTime)/1000,0.05);
+  lastTime=ts;
+  updateTweens(dt);
+  if(scene==='intro') {}
+  else if(scene==='hub') {
+    renderHub();
+  }
+  else if(scene==='game') renderGame();
+  else if(scene==='victory') renderVictory();
+  else if(scene==='complete') renderComplete();
+  requestAnimationFrame(loop);
+}
+
+// ===== SUSPECTS LIST DATA MODEL (MAPPED TO JPG ASSETS) =====
+const suspectsList = [
+  { 
+    level: 1,
+    name: '带刺的白玫瑰', nameEn: 'The Rookie',
+    quote: '“那天晚上，他确实给了我很多小费，但我很早就下班了……”',
+    id: 'rookie', img: 'images/1.jpg',
+    gradient: 'linear-gradient(135deg, #FFB6C1, #8B0000)',
+    evidenceTitle: '获得证物：停摆的复古金表',
+    profilingText: '金表的发条是满的，指针停在 11:45。表面有明显的顿挫裂痕，这是受到外力剧烈撞击导致的停摆。\n新人酒女在撒谎，死者根本没有像她描述的那样“安全离开”，他在当晚 11:45，在这间酒馆里遭遇了袭击。',
+    victoryBtnText: '继续盘问'
+  },
+  { 
+    level: 2,
+    name: '精密的旁观者', nameEn: 'The Bartender',
+    quote: '“我的眼里只有酒，不过，那天他的酒里，确实多了一丝不属于我的香水味。”',
+    id: 'bartender', img: 'images/2.jpg',
+    gradient: 'linear-gradient(135deg, #4682B4, #000000)',
+    evidenceTitle: '获得证物：【沾有特殊口红印的碎玻璃杯】',
+    profilingText: '玻璃碎片边缘残留着微量的‘三唑仑’成分——一种致命的催眠药。杯口上残留的‘烈焰红’口红，全酒馆只有一个人涂。\n酒保虽然没有动手，但他眼睁睁看着那杯下了毒的酒送到了死者手里，却选择了沉默。那是红牌的口红。',
+    victoryBtnText: '继续盘问'
+  },
+  { 
+    level: 3,
+    name: '燃烧的红宝石', nameEn: 'The Top Hostess',
+    quote: '“呵，那个男人？他不过是妈妈桑池塘里的一条鱼罢了，我才看不上。”',
+    id: 'hostess', img: 'images/3.jpg',
+    gradient: 'linear-gradient(135deg, #DC143C, #4B0082)',
+    evidenceTitle: '获得证物：【撕碎的当票】',
+    profilingText: '当票日期就是案发当晚，死者在进入酒馆前，就已经把那颗真正的蓝宝石抵押给了高利贷。这是一个连环局。\n失踪的珠宝商根本不是什么富豪，他早就破产了，今晚他是带着一颗假宝石来这里还命债的。红牌精心策划的投毒，只抢到了一张废纸。',
+    victoryBtnText: '继续盘问'
+  },
+  { 
+    level: 4,
+    name: '西装暴徒', nameEn: 'The Yakuza',
+    quote: '“侦探，别多管闲事。他欠的债，用一条命还，或许还不够呢。”',
+    id: 'yakuza', img: 'images/4.jpg',
+    gradient: 'linear-gradient(135deg, #D2691E, #000000)',
+    evidenceTitle: '获得证物：【带血的黄铜指虎】',
+    profilingText: '指虎上的血迹经化验确实属于死者。讨债人的确狠狠揍了他，为了逼问那颗消失的蓝宝石的下落。\n但是，现场的出血量和伤痕角度不足以致命。死者遭遇殴打后利用酒馆暗道逃脱了，讨债人只是个被黑吃黑耍了的打手，真正的致命一击在后门。',
+    victoryBtnText: '继续盘问'
+  },
+  { 
+    level: 5,
+    name: '褪色的金孔雀', nameEn: 'The Singer',
+    quote: '“他说过要带我远走高飞的……直到我看到他走进了她的休息室。”',
+    id: 'singer', img: 'images/5.jpg',
+    gradient: 'linear-gradient(135deg, #C0C0C0, #191970)',
+    evidenceTitle: '获得证物：【未剪票的渡轮客票】',
+    profilingText: '死者原计划在当晚带她私奔，彻底逃离黑道的追杀。客票上沾着的机油和泥土，证明它们是在酒馆后巷的垃圾桶里被找到的。\n死者成功逃到了后巷，但他没能登上那艘船。有人在暗处截住了他，并对酒馆的暗道和他的逃跑路线了如指掌。',
+    victoryBtnText: '继续盘问'
+  },
+  { 
+    level: 6,
+    name: '结网的黑寡妇', nameEn: 'The Madam',
+    quote: '“在这家酒馆里，没有秘密，只有交易。你以为你找到了真相，其实，你只是喝醉了。”',
+    id: 'madam', img: 'images/6.jpg',
+    gradient: 'linear-gradient(135deg, #FFD700, #000000)',
+    evidenceTitle: '获得证物：【冷库钥匙】 ＆ 【半颗蓝宝石】',
+    profilingText: '一切都对上了。钥匙属于酒馆地下的废弃冷库，失踪者就躺在里面。妈妈桑才是整场骗保、黑吃黑的结网蜘蛛。她清理了所有人。\n但是……这颗价值连城的蓝宝石为什么被精确地切割成了两半？另一半现在在谁的手里？侦探，你背后的冷汗，是因为夜风，还是因为你突然想通了什么？',
+    victoryBtnText: '[ 终局：揭开最终真相 ]'
+  }
+];
+
+// Preload evidence images dynamically
+suspectsList.forEach(s => {
+  s.evidenceImgObj = new Image();
+  if (s.level === 1) s.evidenceImg = 'images/金表.jpg';
+  else if (s.level === 2) s.evidenceImg = 'images/碎玻璃杯.jpg';
+  else if (s.level === 3) s.evidenceImg = 'images/当票.jpg';
+  else if (s.level === 4) s.evidenceImg = 'images/指虎.jpg';
+  else if (s.level === 5) s.evidenceImg = 'images/船票.jpg';
+  else if (s.level === 6) s.evidenceImg = 'images/钥匙和蓝宝石.jpg';
+  s.evidenceImgObj.src = s.evidenceImg;
+});
+
+function startLevel(idx) {
+  document.getElementById('scene-game-hub').classList.remove('active');
+  document.getElementById('gl').classList.add('active');
+  document.getElementById('ui').classList.add('active');
+  currentLevel = idx;
+  coins = 0;
+  initLevel(idx);
+  changeScene('game');
+  
+  // Set body background to the character's designated image from images folder
+  const suspect = suspectsList[idx];
+  document.body.style.backgroundImage = `url('images/${suspect.id}.jpg')`;
+  document.body.style.backgroundPosition = "center top"; // shift portrait down to show the head/complete image
+}
+
+function selectSuspect(idx) {
+  // Highlight active card
+  document.querySelectorAll('.suspect-card').forEach((card, cIdx) => {
+    if (cIdx === idx) {
+      card.classList.add('active-level');
+    } else {
+      card.classList.remove('active-level');
+    }
+  });
+}
+
+function renderHubLevels() {
+  const cardsContainer = document.getElementById('hub-cards-container');
+  if (!cardsContainer) return;
+  cardsContainer.innerHTML = '';
+  
+  // Generate cards
+  suspectsList.forEach((suspect, idx) => {
+    const isUnlocked = suspect.level <= (maxUnlockedLevel + 1);
+    const isCleared = idx < maxUnlockedLevel;
+    const isActiveProgression = idx === maxUnlockedLevel;
+    
+    const card = document.createElement('div');
+    card.className = `suspect-card ${isUnlocked ? 'unlocked' : 'locked'} ${isActiveProgression ? 'active-level' : ''}`;
+    
+    // 1. Photo container
+    const photo = document.createElement('div');
+    photo.className = 'card-photo';
+    photo.style.backgroundImage = `url('${suspect.img}')`;
+    
+    // 2. Rubber Cleared Stamp
+    if (isCleared) {
+      const stamp = document.createElement('div');
+      stamp.className = 'card-stamp';
+      stamp.textContent = '已获口供';
+      photo.appendChild(stamp);
+    }
+    
+    // 3. Padlock Overlay for locked suspects
+    if (!isUnlocked) {
+      const lock = document.createElement('div');
+      lock.className = 'card-lock-overlay';
+      lock.textContent = '[ 未解锁 ]';
+      photo.appendChild(lock);
+    }
+    
+    // 4. Dynamic Quote & Action Overlay on Hover (for all unlocked/cleared cards)
+    if (isUnlocked) {
+      const quoteOverlay = document.createElement('div');
+      quoteOverlay.className = 'card-quote-overlay';
+      
+      const quoteText = document.createElement('p');
+      quoteText.className = 'card-quote-text';
+      quoteText.textContent = suspect.quote;
+      quoteOverlay.appendChild(quoteText);
+      
+      const btn = document.createElement('button');
+      btn.className = 'serve-wine-btn';
+      btn.textContent = isCleared ? '重新盘问' : '递上一杯酒';
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        startLevel(idx);
+      };
+      quoteOverlay.appendChild(btn);
+      
+      photo.appendChild(quoteOverlay);
+    }
+    
+    card.appendChild(photo);
+    
+    // 5. Card Bottom details
+    const info = document.createElement('div');
+    info.className = 'card-info';
+    
+    const infoTitle = document.createElement('div');
+    infoTitle.className = 'card-info-title';
+    infoTitle.textContent = suspect.name;
+    info.appendChild(infoTitle);
+    
+    const infoSubtitle = document.createElement('div');
+    infoSubtitle.className = 'card-info-subtitle';
+    infoSubtitle.textContent = suspect.nameEn;
+    info.appendChild(infoSubtitle);
+    
+    card.appendChild(info);
+    
+    // 6. Click action
+    card.onclick = (e) => {
+      e.stopPropagation();
+      if (!isUnlocked) {
+        card.classList.add('shake');
+        setTimeout(() => card.classList.remove('shake'), 300);
+      } else {
+        // Double-click safety net: If the card is already highlighted/active, clicking it again directly enters the level!
+        if (card.classList.contains('active-level')) {
+          startLevel(idx);
+        } else {
+          selectSuspect(idx);
+        }
+      }
+    };
+    
+    cardsContainer.appendChild(card);
+  });
+  
+  // Auto-select the current active progression level suspect card initially
+  const defaultIdx = Math.min(maxUnlockedLevel, suspectsList.length - 1);
+  setTimeout(() => {
+    selectSuspect(defaultIdx);
+  }, 100);
+}
+
+document.getElementById('scene-game-hub').onclick = (e) => {
+  // Keep the active suspect selected and highlighted on outside clicks to prevent blank dark screens
+  if (e.target.closest('.global-nav') || e.target.closest('.suspect-card')) return;
+};
+
+// ===== DEBUG BUTTON LOGIC =====
+document.getElementById('btn-debug').onclick = () => {
+  // 1. Force enter Hub scene if not already there
+  if (scene !== 'hub') {
+    document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+    document.getElementById('gl').classList.remove('active');
+    document.getElementById('ui').classList.remove('active');
+    document.getElementById('scene-game-hub').classList.add('active');
+    document.getElementById('global-nav').classList.add('active');
+    scene = 'hub';
+  } else {
+    // 2. If already in Hub, increment progression by 1 level!
+    if (maxUnlockedLevel < suspectsList.length) {
+      maxUnlockedLevel++;
+    }
+  }
+  
+  // 3. Render and update
+  renderHubLevels();
+};
+
+// Initial render
+renderHubLevels();
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
