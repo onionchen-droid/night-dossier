@@ -993,11 +993,14 @@ function updateVisualLoading(dt) {
   
   calculateActualProgress();
   
-  if (actualPercent === 0) {
-    // Creep up slowly towards 18% over the first few seconds
-    visualPercent += (18 - visualPercent) * 0.8 * dt;
-  } else {
-    // Catch up smoothly to actual percent
+  // 1. Baseline slow creep towards 95% (ensures the progress bar is always continuously moving)
+  if (visualPercent < 95) {
+    const creepSpeed = (95 - visualPercent) * 0.03 * dt;
+    visualPercent += creepSpeed;
+  }
+  
+  // 2. If actual download progress is ahead, pull visualPercent forward rapidly
+  if (actualPercent > visualPercent) {
     const catchUpSpeed = actualPercent >= 100 ? 5.0 : 1.5;
     visualPercent += (actualPercent - visualPercent) * catchUpSpeed * dt;
   }
