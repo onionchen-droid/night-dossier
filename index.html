@@ -916,29 +916,29 @@ window.confirm = () => true;
 
 // ===== PRELOADER & ASSET RESOLUTION SYSTEM =====
 const ASSETS_TO_LOAD = [
-  { path: 'images/back.png', size: 5324170 },
-  { path: 'images/cover.jpg', size: 5674787 },
-  { path: 'images/cover0.jpg', size: 6478396 },
-  { path: 'images/牛皮纸.png', size: 6979599 },
-  { path: 'images/board_bg.png', size: 815355 },
-  { path: 'images/1.jpg', size: 7174690 },
-  { path: 'images/2.jpg', size: 8506999 },
-  { path: 'images/3.jpg', size: 7739598 },
-  { path: 'images/4.jpg', size: 6981369 },
-  { path: 'images/5.jpg', size: 4231441 },
-  { path: 'images/6.jpg', size: 7292350 },
-  { path: 'images/rookie.jpg', size: 4757189 },
-  { path: 'images/bartender.jpg', size: 6098909 },
-  { path: 'images/hostess.jpg', size: 5423571 },
-  { path: 'images/yakuza.jpg', size: 5561092 },
-  { path: 'images/singer.jpg', size: 365854 },
-  { path: 'images/madam.jpg', size: 5519683 },
-  { path: 'images/金表.jpg', size: 4143020 },
-  { path: 'images/碎玻璃杯.jpg', size: 3688690 },
-  { path: 'images/当票.jpg', size: 5842222 },
-  { path: 'images/指虎.jpg', size: 4125443 },
-  { path: 'images/船票.jpg', size: 4843827 },
-  { path: 'images/钥匙和蓝宝石.jpg', size: 3380985 },
+  { path: 'images/back.webp', size: 197782 },
+  { path: 'images/cover.webp', size: 244150 },
+  { path: 'images/cover0.webp', size: 179290 },
+  { path: 'images/牛皮纸.webp', size: 335370 },
+  { path: 'images/board_bg.webp', size: 79222 },
+  { path: 'images/1.webp', size: 316258 },
+  { path: 'images/2.webp', size: 473314 },
+  { path: 'images/3.webp', size: 414904 },
+  { path: 'images/4.webp', size: 321896 },
+  { path: 'images/5.webp', size: 162506 },
+  { path: 'images/6.webp', size: 372758 },
+  { path: 'images/rookie.webp', size: 141092 },
+  { path: 'images/bartender.webp', size: 260006 },
+  { path: 'images/hostess.webp', size: 206490 },
+  { path: 'images/yakuza.webp', size: 212262 },
+  { path: 'images/singer.webp', size: 80970 },
+  { path: 'images/madam.webp', size: 220344 },
+  { path: 'images/金表.webp', size: 281690 },
+  { path: 'images/碎玻璃杯.webp', size: 636872 },
+  { path: 'images/当票.webp', size: 475424 },
+  { path: 'images/指虎.webp', size: 340412 },
+  { path: 'images/船票.webp', size: 342700 },
+  { path: 'images/钥匙和蓝宝石.webp', size: 257986 },
   { path: 'music/下雨.mp3', size: 1885920 },
   { path: 'music/主bgm首选.mp3', size: 4701508 },
   { path: 'music/开门.mp3', size: 48000 },
@@ -992,6 +992,14 @@ function updateProgressBar() {
 async function downloadAsset(asset, onProgressUpdate) {
   const response = await fetch(asset.path);
   if (!response.ok) throw new Error(`Failed to load ${asset.path}`);
+  
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    const blob = await response.blob();
+    assetMap[asset.path] = URL.createObjectURL(blob);
+    assetProgress[asset.path] = asset.size;
+    onProgressUpdate();
+    return;
+  }
   
   const reader = response.body.getReader();
   const chunks = [];
@@ -1052,44 +1060,44 @@ function startPreload() {
 }
 
 function initPreloadedAssets() {
-  boardBgImg.src = resolveAsset('images/board_bg.png');
-  cardSpriteImg.src = resolveAsset('images/testimony_card.png');
+  boardBgImg.src = resolveAsset('images/board_bg.webp');
+  cardSpriteImg.src = resolveAsset('images/testimony_card.webp');
   
   suspectsList.forEach(s => {
     s.evidenceImgObj.src = resolveAsset(s.evidenceImg);
   });
   
-  document.body.style.backgroundImage = `url(${resolveAsset('images/back.png')})`;
+  document.body.style.backgroundImage = `url(${resolveAsset('images/back.webp')})`;
   document.body.style.backgroundRepeat = "no-repeat";
   document.body.style.backgroundPosition = "center center";
   document.body.style.backgroundSize = "cover";
   
   const introScene = document.getElementById('scene-intro');
   if (introScene) {
-    introScene.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.7)), url(${resolveAsset('images/cover0.jpg')})`;
+    introScene.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.7)), url(${resolveAsset('images/cover0.webp')})`;
   }
   
   const hubBgBlurred = document.getElementById('hub-bg-blurred');
   if (hubBgBlurred) {
-    hubBgBlurred.style.backgroundImage = `url(${resolveAsset('images/back.png')})`;
+    hubBgBlurred.style.backgroundImage = `url(${resolveAsset('images/back.webp')})`;
   }
   
   const coverRevealScene = document.getElementById('scene-cover-reveal');
   if (coverRevealScene) {
-    coverRevealScene.style.backgroundImage = `url(${resolveAsset('images/cover.jpg')})`;
+    coverRevealScene.style.backgroundImage = `url(${resolveAsset('images/cover.webp')})`;
   }
   
   const endingBgBlurred = document.getElementById('ending-bg-blurred');
   if (endingBgBlurred) {
-    endingBgBlurred.style.backgroundImage = `url(${resolveAsset('images/back.png')})`;
+    endingBgBlurred.style.backgroundImage = `url(${resolveAsset('images/back.webp')})`;
   }
   
   document.querySelectorAll('.paper-container').forEach(el => {
-    el.style.backgroundImage = `radial-gradient(circle at 50% 50%, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.05) 100%), url(${resolveAsset('images/牛皮纸.png')})`;
+    el.style.backgroundImage = `radial-gradient(circle at 50% 50%, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.05) 100%), url(${resolveAsset('images/牛皮纸.webp')})`;
   });
 }
 
-window.addEventListener('load', () => {
+function runPreloader() {
   startPreload().then(() => {
     setTimeout(() => {
       initPreloadedAssets();
@@ -1108,7 +1116,13 @@ window.addEventListener('load', () => {
       changeScene('headphones');
     }, 800);
   });
-});
+}
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  runPreloader();
+} else {
+  window.addEventListener('load', runPreloader);
+}
 
 // ===== INTRO DOM LOGIC =====
 const introText = `案发时间：1988年11月24日，深夜。\n地点：台北，“夜色”酒馆。\n失踪者：林某，知名珠宝商人。\n\n他最后一次出现，是带着一枚价值连城的蓝宝石。\n昨晚陪他喝酒的，有六个人。\n每个人都笑容满面，每个人都各怀鬼胎。\n\n今晚，带上你的酒量。\n别相信他们的眼泪，只相信你赢来的线索。`;
@@ -1460,7 +1474,7 @@ function changeScene(newScene) {
 
   // Restore default hub background when returning to hub or intro
   if (scene === 'hub' || scene === 'intro') {
-    document.body.style.backgroundImage = "url('images/back.png')";
+    document.body.style.backgroundImage = "url('" + resolveAsset('images/back.webp') + "')";
     document.body.style.backgroundPosition = "center center";
   }
   if (scene === 'ending') {
@@ -3089,7 +3103,7 @@ function renderVictory(){
       ctx.restore();
     } else {
       ctx.save();
-      ctx.fillStyle = '#1e130d'; // C.btnColor
+      ctx.fillStyle = '#1e130d'; // C.btnColor 
       ctx.beginPath();
       if (ctx.roundRect) {
         ctx.roundRect(bx, by, btnW, btnH, 25);
@@ -3193,7 +3207,7 @@ const suspectsList = [
     level: 1,
     name: '带刺的白玫瑰', nameEn: 'The Rookie',
     quote: '“那天晚上，他确实给了我很多小费，但我很早就下班了……”',
-    id: 'rookie', img: 'images/1.jpg',
+    id: 'rookie', img: 'images/1.webp',
     gradient: 'linear-gradient(135deg, #FFB6C1, #8B0000)',
     evidenceTitle: '获得证物：停摆的复古金表',
     profilingText: '金表的发条是满的，指针停在 11:45。表面有明显的顿挫裂痕，这是受到外力剧烈撞击导致的停摆。\n新人酒女在撒谎，死者根本没有像她描述的那样“安全离开”，他在当晚 11:45，在这间酒馆里遭遇了袭击。',
@@ -3203,7 +3217,7 @@ const suspectsList = [
     level: 2,
     name: '精密的旁观者', nameEn: 'The Bartender',
     quote: '“我的眼里只有酒，不过，那天他的酒里，确实多了一丝不属于我的香水味。”',
-    id: 'bartender', img: 'images/2.jpg',
+    id: 'bartender', img: 'images/2.webp',
     gradient: 'linear-gradient(135deg, #4682B4, #000000)',
     evidenceTitle: '获得证物：【沾有特殊口红印的碎玻璃杯】',
     profilingText: '玻璃碎片边缘残留着微量的‘三唑仑’成分——一种致命的催眠药。杯口上残留的‘烈焰红’口红，全酒馆只有一个人涂。\n酒保虽然没有动手，但他眼睁睁看着那杯下了毒的酒送到了死者手里，却选择了沉默。那是红牌的口红。',
@@ -3213,7 +3227,7 @@ const suspectsList = [
     level: 3,
     name: '燃烧的红宝石', nameEn: 'The Top Hostess',
     quote: '“呵，那个男人？他不过是妈妈桑池塘里的一条鱼罢了，我才看不上。”',
-    id: 'hostess', img: 'images/3.jpg',
+    id: 'hostess', img: 'images/3.webp',
     gradient: 'linear-gradient(135deg, #DC143C, #4B0082)',
     evidenceTitle: '获得证物：【撕碎的当票】',
     profilingText: '当票日期就是案发当晚，死者在进入酒馆前，就已经把那颗真正的蓝宝石抵押给了高利贷。这是一个连环局。\n失踪的珠宝商根本不是什么富豪，他早就破产了，今晚他是带着一颗假宝石来这里还命债的。红牌精心策划的投毒，只抢到了一张废纸。',
@@ -3223,7 +3237,7 @@ const suspectsList = [
     level: 4,
     name: '西装暴徒', nameEn: 'The Yakuza',
     quote: '“侦探，别多管闲事。他欠的债，用一条命还，或许还不够呢。”',
-    id: 'yakuza', img: 'images/4.jpg',
+    id: 'yakuza', img: 'images/4.webp',
     gradient: 'linear-gradient(135deg, #D2691E, #000000)',
     evidenceTitle: '获得证物：【带血的黄铜指虎】',
     profilingText: '指虎上的血迹经化验确实属于死者。讨债人的确狠狠揍了他，为了逼问那颗消失的蓝宝石的下落。\n但是，现场的出血量和伤痕角度不足以致命。死者遭遇殴打后利用酒馆暗道逃脱了，讨债人只是个被黑吃黑耍了的打手，真正的致命一击在后门。',
@@ -3233,7 +3247,7 @@ const suspectsList = [
     level: 5,
     name: '褪色的金孔雀', nameEn: 'The Singer',
     quote: '“他说过要带我远走高飞的……直到我看到他走进了她的休息室。”',
-    id: 'singer', img: 'images/5.jpg',
+    id: 'singer', img: 'images/5.webp',
     gradient: 'linear-gradient(135deg, #C0C0C0, #191970)',
     evidenceTitle: '获得证物：【未剪票的渡轮客票】',
     profilingText: '死者原计划在当晚带她私奔，彻底逃离黑道的追杀。客票上沾着的机油和泥土，证明它们是在酒馆后巷的垃圾桶里被找到的。\n死者成功逃到了后巷，但他没能登上那艘船。有人在暗处截住了他，并对酒馆的暗道和他的逃跑路线了如指掌。',
@@ -3243,7 +3257,7 @@ const suspectsList = [
     level: 6,
     name: '结网的黑寡妇', nameEn: 'The Madam',
     quote: '“在这家酒馆里，没有秘密，只有交易。你以为你找到了真相，其实，你只是喝醉了。”',
-    id: 'madam', img: 'images/6.jpg',
+    id: 'madam', img: 'images/6.webp',
     gradient: 'linear-gradient(135deg, #FFD700, #000000)',
     evidenceTitle: '获得证物：【冷库钥匙】 ＆ 【半颗蓝宝石】',
     profilingText: '一切都对上了。钥匙属于酒馆地下的废弃冷库，失踪者就躺在里面。妈妈桑才是整场骗保、黑吃黑的结网蜘蛛。她清理了所有人。\n但是……这颗价值连城的蓝宝石为什么被精确地切割成了两半？另一半现在在谁的手里？侦探，你背后的冷汗，是因为夜风，还是因为你突然想通了什么？',
@@ -3254,12 +3268,12 @@ const suspectsList = [
 // Preload evidence images dynamically
 suspectsList.forEach(s => {
   s.evidenceImgObj = new Image();
-  if (s.level === 1) s.evidenceImg = 'images/金表.jpg';
-  else if (s.level === 2) s.evidenceImg = 'images/碎玻璃杯.jpg';
-  else if (s.level === 3) s.evidenceImg = 'images/当票.jpg';
-  else if (s.level === 4) s.evidenceImg = 'images/指虎.jpg';
-  else if (s.level === 5) s.evidenceImg = 'images/船票.jpg';
-  else if (s.level === 6) s.evidenceImg = 'images/钥匙和蓝宝石.jpg';
+  if (s.level === 1) s.evidenceImg = 'images/金表.webp';
+  else if (s.level === 2) s.evidenceImg = 'images/碎玻璃杯.webp';
+  else if (s.level === 3) s.evidenceImg = 'images/当票.webp';
+  else if (s.level === 4) s.evidenceImg = 'images/指虎.webp';
+  else if (s.level === 5) s.evidenceImg = 'images/船票.webp';
+  else if (s.level === 6) s.evidenceImg = 'images/钥匙和蓝宝石.webp';
   s.evidenceImgObj.src = s.evidenceImg;
 });
 
@@ -3274,7 +3288,7 @@ function startLevel(idx) {
   
   // Set body background to the character's designated image from images folder
   const suspect = suspectsList[idx];
-  document.body.style.backgroundImage = `url('${resolveAsset('images/' + suspect.id + '.jpg')}')`;
+  document.body.style.backgroundImage = `url('${resolveAsset('images/' + suspect.id + '.webp')}')`;
   document.body.style.backgroundPosition = "center top"; // shift portrait down to show the head/complete image
 }
 

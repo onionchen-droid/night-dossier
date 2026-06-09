@@ -6,3 +6,7 @@ Thumbs.db
 .DS_Store
 *.md
 .git/
+
+# Exclude original large images from Git
+images/*.jpg
+images/*.png
