@@ -975,18 +975,71 @@ function startTipRotation() {
   }, 3000);
 }
 
-function updateProgressBar() {
+let actualPercent = 0;
+let visualPercent = 0;
+let loadingFinished = false;
+let preloaderTransitionTriggered = false;
+
+function calculateActualProgress() {
   let currentLoaded = 0;
   ASSETS_TO_LOAD.forEach(a => {
     currentLoaded += assetProgress[a.path] || 0;
   });
+  actualPercent = (currentLoaded / totalSize) * 100;
+}
+
+function updateVisualLoading(dt) {
+  if (loadingFinished) return;
   
-  const percent = Math.min(Math.round((currentLoaded / totalSize) * 100), 100);
+  calculateActualProgress();
+  
+  if (actualPercent === 0) {
+    // Creep up slowly towards 18% over the first few seconds
+    visualPercent += (18 - visualPercent) * 0.8 * dt;
+  } else {
+    // Catch up smoothly to actual percent
+    const catchUpSpeed = actualPercent >= 100 ? 5.0 : 1.5;
+    visualPercent += (actualPercent - visualPercent) * catchUpSpeed * dt;
+  }
+  
+  if (visualPercent > 100) visualPercent = 100;
+  
+  const displayPercent = Math.round(visualPercent);
   
   const bar = document.getElementById('loading-bar-fill');
   const text = document.getElementById('loading-text');
-  if (bar) bar.style.width = percent + '%';
-  if (text) text.textContent = `案卷线索拼凑中... ${percent}%`;
+  if (bar) bar.style.width = visualPercent + '%';
+  if (text) text.textContent = `案卷线索拼凑中... ${displayPercent}%`;
+  
+  if (actualPercent >= 100 && visualPercent >= 99.8) {
+    loadingFinished = true;
+    visualPercent = 100;
+    if (bar) bar.style.width = '100%';
+    if (text) text.textContent = '案卷线索拼凑中... 100%';
+    onPreloadComplete();
+  }
+}
+
+function onPreloadComplete() {
+  if (preloaderTransitionTriggered) return;
+  preloaderTransitionTriggered = true;
+  
+  setTimeout(() => {
+    initPreloadedAssets();
+    AudioSystem.init();
+    
+    const loadingScene = document.getElementById('scene-loading');
+    if (loadingScene) {
+      loadingScene.classList.remove('active');
+    }
+    
+    const headphonesScene = document.getElementById('scene-headphones');
+    if (headphonesScene) {
+      headphonesScene.classList.add('active');
+    }
+    
+    changeScene('headphones');
+  }, 800);
 }
 
 async function downloadAsset(asset, onProgressUpdate) {
@@ -1040,7 +1093,7 @@ function startPreload() {
         const asset = queue.shift();
         activeCount++;
         
-        downloadAsset(asset, updateProgressBar)
+        downloadAsset(asset, calculateActualProgress)
           .then(() => {
             activeCount--;
             next();
@@ -1048,7 +1101,7 @@ function startPreload() {
           .catch(err => {
             console.error(`Error loading asset: ${asset.path}`, err);
             assetProgress[asset.path] = asset.size;
-            updateProgressBar();
+            calculateActualProgress();
             activeCount--;
             next();
           });
@@ -1098,24 +1151,7 @@ function initPreloadedAssets() {
 }
 
 function runPreloader() {
-  startPreload().then(() => {
-    setTimeout(() => {
-      initPreloadedAssets();
-      AudioSystem.init();
-      
-      const loadingScene = document.getElementById('scene-loading');
-      if (loadingScene) {
-        loadingScene.classList.remove('active');
-      }
-      
-      const headphonesScene = document.getElementById('scene-headphones');
-      if (headphonesScene) {
-        headphonesScene.classList.add('active');
-      }
-      
-      changeScene('headphones');
-    }, 800);
-  });
+  startPreload();
 }
 
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -3191,6 +3227,9 @@ function loop(ts){
   const dt=Math.min((ts-lastTime)/1000,0.05);
   lastTime=ts;
   updateTweens(dt);
+  if (scene === 'loading') {
+    updateVisualLoading(dt);
+  }
   if(scene==='intro') {}
   else if(scene==='hub') {
     renderHub();
