@@ -1906,6 +1906,13 @@ let selectedBlock = null;
 let dragStart = null;
 let tutorialShown = false;
 let tutorialDismissed = false;
+let tutorialStep = 0; // 0: inactive, 1: green block down, 2: orange block up, 3: completed
+let tutorialTextTimer = 0;
+let juiceParticles = [];
+let juiceSmoke = [];
+let juiceStamps = [];
+let screenShakeTime = 0;
+let screenShakeIntensity = 0;
 let activeSpotlightPos = { x: window.innerWidth * 0.5, y: 0 };
 
 // Preload Luxury Bar Tabletop Background Image
@@ -2091,7 +2098,53 @@ function initLevel(idx){
   };
   tutorialDismissed = false;
   tutorialShown = !!lv.tutorial;
+  tutorialStep = lv.tutorial ? 1 : 0;
+  tutorialTextTimer = 0;
+  juiceParticles = [];
+  juiceSmoke = [];
+  juiceStamps = [];
+  screenShakeTime = 0;
+  screenShakeIntensity = 0;
   calcBoardLayout();
+}
+
+function getBlockCenter(b) {
+  let minX = 99, maxX = -99, minY = 99, maxY = -99;
+  b.cells.forEach(c => {
+    if (c.x < minX) minX = c.x;
+    if (c.x > maxX) maxX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  });
+  const bW = (maxX - minX + 1) * cellSz;
+  const bH = (maxY - minY + 1) * cellSz;
+  const cp = cellToPixel(b.px, b.py);
+  return {
+    x: cp.x + bW / 2,
+    y: cp.y + bH / 2
+  };
+}
+
+function triggerEliminationJuice(block) {
+  const center = getBlockCenter(block);
+  spawnDetectiveStamp(center.x, center.y, '【 谎言戳破 】', block.color, block.char);
+}
+
+function updateTutorialProgress() {
+  if (!board || !board.tutorial) return;
+  if (tutorialStep === 1) {
+    const greenBlock = board.blocks.find(b => b.color === 'green');
+    if (greenBlock && (greenBlock.eliminated || greenBlock.eaten >= greenBlock.cap)) {
+      tutorialStep = 2;
+      tutorialTextTimer = 0;
+    }
+  } else if (tutorialStep === 2) {
+    const orangeBlock = board.blocks.find(b => b.color === 'orange');
+    if (orangeBlock && (orangeBlock.eliminated || orangeBlock.eaten >= orangeBlock.cap)) {
+      tutorialStep = 3;
+      tutorialShown = false;
+    }
+  }
 }
 
 let bx,by,cellSz,boardW,boardH;
@@ -2188,10 +2241,14 @@ function tryMove(block, dx, dy){
       for(const d of s.dots){
         d.alive=false;
         block.eaten++;
+        const cpDot = cellToPixel(d.x, d.y);
+        spawnAbsorption(cpDot.x + cellSz/2, cpDot.y + cellSz/2, block);
       }
     }
     if(block.eaten>=block.cap){
       block.eliminated=true;
+      updateTutorialProgress();
+      triggerEliminationJuice(block);
       tween(block,'alpha',0,0.3,null);
       tween(block,'scale',0,0.3,easeOut,()=>{
         checkWin();
@@ -2316,6 +2373,8 @@ function handleDown(e){
   if(scene!=='game'||animating) return;
   for(const b of board.blocks){
     if(b.eliminated) continue;
+    if(tutorialStep === 1 && b.color !== 'green') continue;
+    if(tutorialStep === 2 && b.color !== 'orange') continue;
     for(const c of b.cells){
       const cp=cellToPixel(b.px+c.x,b.py+c.y);
       if(mx>=cp.x&&mx<=cp.x+cellSz&&my>=cp.y&&my<=cp.y+cellSz){
@@ -2384,6 +2443,8 @@ function handleMove(e){
         dot.alive = false;
         selectedBlock.eaten++;
         ateSomething = true;
+        const cpDot = cellToPixel(dot.x, dot.y);
+        spawnAbsorption(cpDot.x + cellSz/2, cpDot.y + cellSz/2, selectedBlock);
       }
     }
   }
@@ -2391,9 +2452,11 @@ function handleMove(e){
   if (ateSomething) {
     if (selectedBlock.eaten >= selectedBlock.cap) {
       let block = selectedBlock;
-      block.eliminated = true;
       block.px = currentPx;
       block.py = currentPy;
+      block.eliminated = true;
+      updateTutorialProgress();
+      triggerEliminationJuice(block);
       selectedBlock = null;
       dragStart = null;
       
@@ -2444,11 +2507,15 @@ function handleUp(e){
       if(dot && dot.color === block.color) {
         dot.alive = false;
         block.eaten++;
+        const cpDot = cellToPixel(dot.x, dot.y);
+        spawnAbsorption(cpDot.x + cellSz/2, cpDot.y + cellSz/2, block);
       }
     }
     
     if(block.eaten >= block.cap) {
       block.eliminated = true;
+      updateTutorialProgress();
+      triggerEliminationJuice(block);
       tween(block,'alpha',0,0.3,null);
       tween(block,'scale',0,0.3,easeOut,()=>{
         checkWin();
@@ -2477,7 +2544,578 @@ function renderHub(){
   document.getElementById('scene-game-hub').classList.add('active');
 }
 
-function renderGame(){
+function spawnThematicExplosion(x, y, color) {
+  function getNeonCore(col) {
+    switch(col) {
+      case 'green': return '#39ff14';
+      case 'orange': return '#ff7700';
+      case 'red': return '#ff3366';
+      case 'purple': return '#d000ff';
+      case 'yellow': return '#ffdd00';
+      case 'white': return '#ffffff';
+      default: return '#ffffff';
+    }
+  }
+  const coreColor = getNeonCore(color);
+
+  for (let i = 0; i < 16; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 120 + Math.random() * 160;
+    juiceParticles.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 80,
+      size: 3 + Math.random() * 4,
+      alpha: 1.0,
+      decay: 1.2 + Math.random() * 0.8,
+      color: coreColor,
+      type: 'liquid',
+      gravity: 380
+    });
+  }
+
+  for (let i = 0; i < 10; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 80 + Math.random() * 120;
+    juiceParticles.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 40,
+      size: 4 + Math.random() * 5,
+      alpha: 1.0,
+      decay: 0.9 + Math.random() * 0.6,
+      color: '#ffffff',
+      strokeColor: coreColor,
+      type: 'shard',
+      angle: Math.random() * Math.PI * 2,
+      rotateSpeed: (Math.random() - 0.5) * 8,
+      gravity: 240
+    });
+  }
+}
+
+function spawnCharacterShatter(x, y, char, color) {
+  function getNeonCore(col) {
+    switch(col) {
+      case 'green': return '#39ff14';
+      case 'orange': return '#ff7700';
+      case 'red': return '#ff3366';
+      case 'purple': return '#d000ff';
+      case 'yellow': return '#ffdd00';
+      case 'white': return '#ffffff';
+      default: return '#ffffff';
+    }
+  }
+  const coreColor = getNeonCore(color);
+
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 40 + Math.random() * 60;
+    juiceParticles.push({
+      x: x + (Math.random() - 0.5) * 15,
+      y: y + (Math.random() - 0.5) * 15,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 60,
+      size: 8 + Math.random() * 6,
+      alpha: 1.0,
+      decay: 1.0 + Math.random() * 0.5,
+      color: coreColor,
+      type: 'stroke',
+      angle: Math.random() * Math.PI * 2,
+      rotateSpeed: (Math.random() - 0.5) * 4,
+      gravity: -60
+    });
+  }
+}
+
+function spawnThematicSmoke(x, y, color) {
+  function getNeonCore(col) {
+    switch(col) {
+      case 'green': return 'rgba(57, 255, 20, 0.2)';
+      case 'orange': return 'rgba(255, 119, 0, 0.2)';
+      case 'red': return 'rgba(255, 51, 102, 0.2)';
+      case 'purple': return 'rgba(208, 0, 255, 0.2)';
+      case 'yellow': return 'rgba(255, 221, 0, 0.2)';
+      default: return 'rgba(255, 255, 255, 0.15)';
+    }
+  }
+  const smokeColor = getNeonCore(color);
+
+  for (let i = 0; i < 5; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 15 + Math.random() * 25;
+    juiceSmoke.push({
+      x: x + (Math.random() - 0.5) * 10,
+      y: y + (Math.random() - 0.5) * 10,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 10,
+      size: 15 + Math.random() * 10,
+      maxSize: 40 + Math.random() * 20,
+      alpha: 0.8,
+      decay: 1.0 + Math.random() * 0.4,
+      color: smokeColor
+    });
+  }
+}
+
+function spawnDetectiveStamp(x, y, text, color, char) {
+  juiceStamps.push({
+    x: x,
+    y: y,
+    text: text || '【 谎言戳破 】',
+    color: color,
+    char: char,
+    scale: 6.0,
+    alpha: 0.1,
+    life: 1.6,
+    shook: false
+  });
+}
+
+function spawnAbsorption(startX, startY, block) {
+  function getNeonCore(col) {
+    switch(col) {
+      case 'green': return '#39ff14';
+      case 'orange': return '#ff7700';
+      case 'red': return '#ff3366';
+      case 'purple': return '#d000ff';
+      case 'yellow': return '#ffdd00';
+      default: return '#ffffff';
+    }
+  }
+  const coreColor = getNeonCore(block.color);
+  
+  for (let i = 0; i < 5; i++) {
+    juiceParticles.push({
+      x: startX,
+      y: startY,
+      targetBlock: block,
+      alpha: 1.0,
+      size: 3 + Math.random() * 3,
+      color: coreColor,
+      type: 'absorb',
+      life: 0.0,
+      speed: 1.8 + Math.random() * 0.8,
+      curveOffset: (Math.random() - 0.5) * 60
+    });
+  }
+}
+
+function drawAndUpdateJuiceSystem(dt) {
+  for (let i = juiceSmoke.length - 1; i >= 0; i--) {
+    const s = juiceSmoke[i];
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.size += (s.maxSize - s.size) * 2.0 * dt;
+    s.alpha -= dt / s.decay;
+
+    if (s.alpha <= 0) {
+      juiceSmoke.splice(i, 1);
+      continue;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = s.alpha;
+    const grad = ctx.createRadialGradient(s.x, s.y, s.size * 0.1, s.x, s.y, s.size * 0.5);
+    grad.addColorStop(0, s.color);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  for (let i = juiceParticles.length - 1; i >= 0; i--) {
+    const p = juiceParticles[i];
+    
+    if (p.type === 'absorb') {
+      p.life += dt * p.speed;
+      if (p.life >= 1.0) {
+        juiceParticles.splice(i, 1);
+        continue;
+      }
+      
+      let minX = 99, maxX = -99, minY = 99, maxY = -99;
+      p.targetBlock.cells.forEach(c => {
+        if (c.x < minX) minX = c.x;
+        if (c.x > maxX) maxX = c.x;
+        if (c.y < minY) minY = c.y;
+        if (c.y > maxY) maxY = c.y;
+      });
+      const bW = (maxX - minX + 1) * cellSz;
+      const bH = (maxY - minY + 1) * cellSz;
+      const targetX = p.targetBlock.ax + bW / 2;
+      const targetY = p.targetBlock.ay + bH / 2;
+      
+      const tVal = p.life;
+      const lx = p.x + (targetX - p.x) * tVal;
+      const ly = p.y + (targetY - p.y) * tVal;
+      
+      const diffX = targetX - p.x;
+      const diffY = targetY - p.y;
+      const len = Math.sqrt(diffX*diffX + diffY*diffY);
+      const px = -diffY / (len || 1);
+      const py = diffX / (len || 1);
+      const arc = Math.sin(tVal * Math.PI) * p.curveOffset;
+      const drawX = lx + px * arc;
+      const drawY = ly + py * arc;
+      
+      ctx.save();
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = p.color;
+      ctx.beginPath();
+      ctx.arc(drawX, drawY, p.size * (1 - tVal * 0.5), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      continue;
+    }
+
+    p.vy += p.gravity * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.alpha -= dt / p.decay;
+
+    if (p.alpha <= 0) {
+      juiceParticles.splice(i, 1);
+      continue;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+
+    if (p.type === 'liquid') {
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    } 
+    else if (p.type === 'shard') {
+      p.angle += p.rotateSpeed * dt;
+      ctx.strokeStyle = p.strokeColor;
+      ctx.fillStyle = p.color;
+      ctx.lineWidth = 1.2;
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = p.strokeColor;
+      
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.beginPath();
+      ctx.moveTo(0, -p.size);
+      ctx.lineTo(-p.size * 0.7, p.size * 0.5);
+      ctx.lineTo(p.size * 0.7, p.size * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+    else if (p.type === 'stroke') {
+      p.angle += p.rotateSpeed * dt;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = p.color;
+      
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.beginPath();
+      ctx.moveTo(-p.size * 0.5, 0);
+      ctx.lineTo(p.size * 0.5, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  for (let i = juiceStamps.length - 1; i >= 0; i--) {
+    const s = juiceStamps[i];
+    s.life -= dt;
+    
+    if (s.life <= 0) {
+      juiceStamps.splice(i, 1);
+      continue;
+    }
+
+    const age = 1.6 - s.life;
+    const slamDuration = 0.20;
+    if (age < slamDuration) {
+      const p = age / slamDuration;
+      // Cubic ease-in: starts slow, slams down fast
+      s.scale = 1.0 + 5.0 * Math.pow(1 - p, 3);
+      s.alpha = 0.1 + 0.9 * p;
+    } else {
+      s.scale = 1.0;
+      if (!s.shook) {
+        s.shook = true;
+        // Trigger all juice effects exactly when the stamp slams onto the table!
+        screenShakeTime = 0.35;
+        screenShakeIntensity = 12;
+        AudioSystem.playSfx('music/开门.mp3', 0.35);
+        
+        spawnThematicExplosion(s.x, s.y, s.color);
+        spawnThematicSmoke(s.x, s.y, s.color);
+        spawnCharacterShatter(s.x, s.y, s.char, s.color);
+      }
+      
+      if (s.life < 0.35) {
+        s.alpha = s.life / 0.35;
+      } else {
+        s.alpha = 1.0;
+      }
+    }
+
+    ctx.save();
+    ctx.globalAlpha = s.alpha;
+    ctx.translate(s.x, s.y);
+    ctx.scale(s.scale, s.scale);
+    
+    const stampRed = 'rgba(166, 28, 28, 0.9)';
+    ctx.strokeStyle = stampRed;
+    ctx.fillStyle = stampRed;
+    ctx.shadowBlur = 3;
+    ctx.shadowColor = stampRed;
+
+    // Optimally sized double-border box (30% smaller than previous giant stamp)
+    ctx.lineWidth = 3.5;
+    ctx.strokeRect(-125, -30, 250, 60);
+    
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(-118, -23, 236, 46);
+
+    ctx.font = 'bold 27px "Microsoft YaHei", "SimSun", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(s.text, 0, 0);
+
+    ctx.strokeStyle = 'rgba(22, 16, 13, 0.9)';
+    ctx.lineWidth = 1.5;
+    
+    let seed = 42;
+    function pseudoRandom() {
+      const xVal = Math.sin(seed++) * 10000;
+      return xVal - Math.floor(xVal);
+    }
+    for (let k = 0; k < 12; k++) {
+      const rx = (pseudoRandom() - 0.5) * 230;
+      const ry = (pseudoRandom() - 0.5) * 50;
+      ctx.beginPath();
+      ctx.arc(rx, ry, 0.5 + pseudoRandom() * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    ctx.restore();
+  }
+}
+
+function drawEnhancedTutorial() {
+  if (tutorialStep !== 1 && tutorialStep !== 2) return;
+  if (!board) return;
+
+  const t = Date.now() / 1000;
+  const blockColor = (tutorialStep === 1) ? 'green' : 'orange';
+  const activeBlock = board.blocks.find(b => b.color === blockColor);
+  if (!activeBlock || activeBlock.eliminated) return;
+
+  // Helper: Color mapping utility for neon lighting effects
+  function getNeonStyle(color) {
+    switch (color) {
+      case 'green': return { core: '#39ff14', glow: 'rgba(57, 255, 20, 0.8)' };
+      case 'orange': return { core: '#ff7700', glow: 'rgba(255, 119, 0, 0.8)' };
+      default: return { core: '#ffffff', glow: 'rgba(255, 255, 255, 0.8)' };
+    }
+  }
+
+  const neon = getNeonStyle(blockColor);
+
+  // 1. Calculate Spotlight Target Bounds (dark mask drawing removed for full transparency)
+  let minX = 99, maxX = -99, minY = 99, maxY = -99;
+  activeBlock.cells.forEach(c => {
+    if (c.x < minX) minX = c.x;
+    if (c.x > maxX) maxX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  });
+  const bW = (maxX - minX + 1) * cellSz;
+  const bH = (maxY - minY + 1) * cellSz;
+
+  let tx, ty;
+  if (tutorialStep === 1) {
+    const cp = cellToPixel(0, 3);
+    tx = cp.x; ty = cp.y;
+  } else {
+    const cp = cellToPixel(2, 0);
+    tx = cp.x; ty = cp.y;
+  }
+  const tW = 2 * cellSz;
+  const tH = 2 * cellSz;
+
+  // 2. Draw Neon Flowing Path Arrows
+  ctx.save();
+  ctx.fillStyle = neon.core;
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = neon.core;
+  ctx.font = 'bold 20px "Georgia", serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const cx1 = bx + C.boardPad + cellSz * 0.5;
+  const cx2 = bx + C.boardPad + cellSz * 1.5;
+  const cx3 = bx + C.boardPad + cellSz * 2.5;
+  const cx4 = bx + C.boardPad + cellSz * 3.5;
+
+  if (tutorialStep === 1) {
+    const startY = activeBlock.ay + bH;
+    const endY = ty;
+    const flowOffset = (t * 80) % 40;
+    for (let y = startY + flowOffset; y < endY; y += 40) {
+      ctx.fillText('▼', cx1, y);
+      ctx.fillText('▼', cx2, y);
+    }
+  } else {
+    const startY = activeBlock.ay;
+    const endY = ty + tH;
+    const flowOffset = (t * 80) % 40;
+    for (let y = startY - flowOffset; y > endY; y -= 40) {
+      ctx.fillText('▲', cx3, y);
+      ctx.fillText('▲', cx4, y);
+    }
+  }
+  ctx.restore();
+
+  // 3. Draw Looping Hand Gesture Animation (only if the player is not currently dragging)
+  if (!selectedBlock) {
+    const startX = activeBlock.ax + bW / 2;
+    const startY = activeBlock.ay + bH / 2;
+    const endX = tx + bW / 2;
+    const endY = ty + bH / 2;
+
+    const cycle = 2.4;
+    const progress = (t % cycle) / cycle;
+    let alpha = 0;
+    let slideP = 0;
+
+    if (progress < 0.15) {
+      alpha = progress / 0.15;
+      slideP = 0;
+    } else if (progress < 0.7) {
+      alpha = 1;
+      const p = (progress - 0.15) / 0.55;
+      slideP = 1 - Math.pow(1 - p, 3);
+    } else if (progress < 0.85) {
+      alpha = 1;
+      slideP = 1;
+    } else {
+      alpha = (1.0 - progress) / 0.15;
+      slideP = 1;
+    }
+
+    const curX = startX + (endX - startX) * slideP;
+    const curY = startY + (endY - startY) * slideP;
+
+    ctx.save();
+
+    // 1. Draw expanding outer ripple ring (pulsing/breathing)
+    const rippleR = 12 + ((t * 15) % 18); // expanding ripple from 12px to 30px
+    const rippleAlpha = 1 - (rippleR - 12) / 18; // fades out as it expands
+    ctx.strokeStyle = neon.core;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = alpha * rippleAlpha;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = neon.core;
+    ctx.beginPath();
+    ctx.arc(curX, curY, rippleR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Restore alpha for core
+    ctx.globalAlpha = alpha;
+
+    // 2. Draw outer ring (constant size)
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = neon.core;
+    ctx.beginPath();
+    ctx.arc(curX, curY, 12, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 3. Draw solid inner core
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(curX, curY, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // 4. Draw Detective Notebook Typewriter Dialog Bubble
+  const fullText = (tutorialStep === 1) 
+    ? "【系统提示】嫌疑人神色慌张。按住绿色酒杯，向下滑动，吞掉相匹配的绿色性格牌。"
+    : "【系统提示】干得漂亮！现在，按住橙色酒杯向上滑动，消除剩下的橙色性格牌。";
+
+  tutorialTextTimer += 0.35;
+  const visibleChars = Math.min(Math.floor(tutorialTextTimer), fullText.length);
+  const displayText = fullText.substring(0, visibleChars);
+
+  const tutW = Math.min(W * 0.9, 560);
+  const tutH = 75;
+  const tutX = bx + boardW / 2 - tutW / 2;
+  const tutY = by + boardH + 15;
+
+  ctx.save();
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = 'rgba(201, 169, 110, 0.35)';
+
+  ctx.fillStyle = 'rgba(22, 16, 13, 0.96)';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(tutX, tutY, tutW, tutH, 6);
+  } else {
+    ctx.rect(tutX, tutY, tutW, tutH);
+  }
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(201, 169, 110, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(201, 169, 110, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(tutX + 4, tutY + 4, tutW - 8, tutH - 8, 4);
+  } else {
+    ctx.rect(tutX + 4, tutY + 4, tutW - 8, tutH - 8);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = '#f4ebd0';
+  ctx.font = '500 16px "Microsoft YaHei", "Georgia", serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  if (displayText.length <= 26) {
+    ctx.fillText(displayText, tutX + 20, tutY + 28);
+  } else {
+    ctx.fillText(displayText.substring(0, 26), tutX + 20, tutY + 18);
+    ctx.fillText(displayText.substring(26), tutX + 20, tutY + 42);
+  }
+  ctx.restore();
+}
+
+function renderGame(dt = 0.016){
   // Dynamic chroma-key processing for cocktails sprite sheet and blank card sprite
   if (!cocktailsSpriteProcessed) processCocktailsSprite();
   if (!cardSpriteProcessed) processCardSprite();
@@ -2491,6 +3129,19 @@ function renderGame(){
   
   // UI layer Canvas 2D clear
   ctx.clearRect(0,0,W,H);
+
+  let shakeX = 0, shakeY = 0;
+  let shook = false;
+  if (screenShakeTime > 0) {
+    screenShakeTime -= dt;
+    const progress = Math.max(0, screenShakeTime / 0.28);
+    const currentIntensity = screenShakeIntensity * progress;
+    shakeX = (Math.random() - 0.5) * 2 * currentIntensity;
+    shakeY = (Math.random() - 0.5) * 2 * currentIntensity;
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+    shook = true;
+  }
 
   // Helper: Color mapping utility for neon lighting effects (hoisted function)
   function getNeonStyle(color) {
@@ -2758,14 +3409,15 @@ function renderGame(){
   }
   ctx.restore();
 
-  // Tutorial Prompt
-  if(tutorialShown&&!tutorialDismissed){
+  // Enhanced Tutorial Prompt & Overlay
+  if (tutorialStep === 1 || tutorialStep === 2) {
+    drawEnhancedTutorial();
+  } else if (tutorialShown && !tutorialDismissed) {
     const tutW = 280;
     const tutH = 46;
     const tutX = bx + boardW / 2 - tutW / 2;
     const tutY = by + boardH + 20;
 
-    // Draw dark gold-bordered capsule for high readability on any background art
     ctx.save();
     ctx.beginPath();
     if (ctx.roundRect) {
@@ -2779,7 +3431,6 @@ function renderGame(){
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // High-contrast elegant text
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#f4ebd0';
@@ -2787,7 +3438,6 @@ function renderGame(){
     ctx.fillText('推杯换盏，消除证言', bx + boardW / 2, tutY + tutH / 2);
     ctx.restore();
 
-    // Bouncing indicator arrow
     const t=Date.now()/1000;
     const handY=Math.sin(t*3)*10;
     ctx.save();
@@ -2795,6 +3445,14 @@ function renderGame(){
     ctx.fillStyle = '#c9a96e';
     ctx.font='bold 28px "Georgia", serif';
     ctx.fillText('▲', bx + boardW / 2, by + boardH + 95 + handY);
+    ctx.restore();
+  }
+
+  // Draw particle explosion, mist, absorption, and stamps
+  drawAndUpdateJuiceSystem(dt);
+
+  // Restore screen shake coordinate translation
+  if (shook) {
     ctx.restore();
   }
 }
@@ -3237,7 +3895,7 @@ function loop(ts){
   else if(scene==='hub') {
     renderHub();
   }
-  else if(scene==='game') renderGame();
+  else if(scene==='game') renderGame(dt);
   else if(scene==='victory') renderVictory();
   else if(scene==='complete') renderComplete();
   requestAnimationFrame(loop);
